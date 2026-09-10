@@ -1,0 +1,17 @@
+show_sidebar_link:
+  default: false
+  type: bool
+  description:
+    en: "Automatically add Typing to the Discourse sidebar. Leave disabled when the link is managed in the sidebar menu."
+    zh_CN: "自动在 Discourse 侧栏添加 Typing。已通过侧栏菜单维护链接时请保持关闭。"
+default_duration:
+  default: 30
+  type: integer
+  description:
+    en: "Default test duration in seconds."
+    zh_CN: "默认测试时长（秒）。"
+durations:
+  default: "15|30|60|90"
+  description:
+    en: "Available durations, separated by |."
+    zh_CN: "可用时长，用 | 分隔。"

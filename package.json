@@ -1,0 +1,15 @@
+{
+  "name": "discourse-moaclab-typing",
+  "version": "2.2.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "test": "node scripts/validate.mjs",
+    "preview:build": "node scripts/build-preview.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.9",
+    "sass": "1.92.0"
+  }
+}

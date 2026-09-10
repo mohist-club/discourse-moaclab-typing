@@ -1,0 +1,703 @@
+.moaclab-typing-page {
+  background: transparent;
+  box-sizing: border-box;
+  height: auto;
+  margin-inline: 0;
+  max-width: none;
+  min-height: 0;
+  overflow: visible;
+  padding-inline: 24px;
+  width: 100%;
+}
+
+.moaclab-typing-route {
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+body.moaclab-typing-route .sidebar-section-link[data-link-name="moaclab-typing"].moaclab-typing-sidebar-selected {
+  background: var(--d-sidebar-highlight-background, var(--primary-very-low));
+}
+
+.moaclab-typing-route #main-outlet {
+  box-sizing: border-box;
+  height: auto;
+  min-height: calc(100dvh - var(--header-offset, 64px));
+  overflow: visible;
+}
+
+body.moaclab-typing-route #main-outlet-wrapper #main-outlet > #moaclab-typing-page {
+  height: auto;
+  margin-inline: 0;
+  max-width: none;
+  padding-inline: 24px;
+}
+
+.moaclab-typing-route #main-outlet > :not(#moaclab-typing-page) {
+  display: none;
+}
+
+.moaclab-typing-backdrop,
+.moaclab-typing-modal__close,
+.moaclab-typing-modal__actions,
+.moaclab-typing-modal__keyboard {
+  display: none;
+}
+
+.moaclab-typing-modal {
+  --typing-accent: var(--tertiary, #e5482c);
+  --typing-ink: var(--primary, #191a1c);
+  --typing-muted: color-mix(in srgb, var(--typing-ink) 68%, var(--secondary, #fff));
+  --typing-faint: color-mix(in srgb, var(--typing-ink) 64%, var(--secondary, #fff));
+  --typing-line: color-mix(in srgb, var(--typing-ink) 12%, transparent);
+  background: var(--secondary, #fff);
+  box-sizing: border-box;
+  color: var(--typing-ink);
+  display: flex;
+  flex-direction: column;
+  height: auto;
+  margin: 0 auto;
+  max-width: 1180px;
+  min-height: 0;
+  overflow: visible;
+  padding: 0 24px 24px;
+  position: relative;
+  width: 100%;
+}
+
+.moaclab-typing-modal button {
+  font: inherit;
+}
+
+.moaclab-typing-modal,
+.moaclab-typing-modal * {
+  box-sizing: border-box;
+  letter-spacing: 0;
+}
+
+.moaclab-typing-modal__stage {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  margin: 0 auto;
+  max-width: 1040px;
+  min-height: 0;
+  overflow: visible;
+  padding: 32px 0 24px;
+  position: relative;
+  width: 100%;
+}
+
+.moaclab-typing-modal__text {
+  caret-color: transparent;
+  cursor: text;
+  display: grid;
+  flex: 0 0 auto;
+  gap: 16px 20px;
+  grid-template-columns: repeat(var(--typing-columns, 5), minmax(0, 1fr));
+  grid-template-rows: repeat(6, 80px);
+  grid-auto-rows: 80px;
+  height: auto;
+  margin-top: 24px;
+  outline: 0;
+  overflow: hidden;
+  padding: 4px 0;
+}
+
+.moaclab-typing-modal__text:focus-visible {
+  border-radius: 4px;
+  box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--typing-accent) 24%, transparent);
+  outline: 0;
+}
+
+.moaclab-typing-modal__word {
+  align-self: center;
+  container-type: inline-size;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 80px;
+  margin: 0;
+  min-width: 0;
+  padding: 6px 4px;
+}
+
+.moaclab-typing-modal__word-space {
+  display: none;
+}
+
+.moaclab-typing-modal__hanzi {
+  align-self: flex-start;
+  color: var(--typing-faint);
+  font-family: "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  font-size: 16px;
+  font-weight: 450;
+  letter-spacing: 0;
+  line-height: 22px;
+  padding: 0 4px;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.moaclab-typing-modal__word.is-active .moaclab-typing-modal__hanzi {
+  background: color-mix(in srgb, var(--typing-accent) 10%, transparent);
+  border-radius: 6px;
+  color: var(--typing-accent);
+}
+
+.moaclab-typing-modal__pinyin {
+  color: var(--typing-faint);
+  font: 430 28px/34px ui-monospace, SFMono-Regular, Menlo, monospace;
+  // Fit the complete word to its cell, not to the browser viewport.
+  font-size: min(28px, calc((100cqi - 4px) / (var(--typing-chars, 12) * .62)));
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+
+.moaclab-typing-modal__char {
+  border-radius: 4px;
+  display: inline-block;
+  transition: background-color 80ms ease, box-shadow 80ms ease, color 80ms ease, transform 80ms ease;
+}
+
+.moaclab-typing-modal__char.is-done {
+  color: var(--typing-ink);
+}
+
+.moaclab-typing-modal__char.is-wrong {
+  color: #d33d35;
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 6px;
+}
+
+.moaclab-typing-modal__char.is-current {
+  background: var(--typing-accent);
+  box-shadow: 0 3px 0 color-mix(in srgb, var(--typing-accent) 64%, black);
+  color: var(--secondary, #fff);
+  padding: 0;
+  position: relative;
+  transform: translateY(-2px);
+}
+
+.moaclab-typing-modal__char.is-current::after {
+  content: none;
+}
+
+.moaclab-typing-modal__impact-layer {
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  position: absolute;
+}
+
+.moaclab-typing-modal__impact-layer i {
+  background: linear-gradient(90deg, var(--typing-accent), color-mix(in srgb, var(--typing-accent) 62%, white));
+  border-radius: 999px;
+  box-shadow:
+    0 0 10px color-mix(in srgb, var(--typing-accent) 62%, transparent),
+    0 0 24px color-mix(in srgb, var(--typing-accent) 34%, transparent);
+  height: 3px;
+  pointer-events: none;
+  position: absolute;
+  transform-origin: left center;
+  width: 13px;
+}
+
+.moaclab-typing-modal__impact-layer .moaclab-typing-modal__impact-ring {
+  background: transparent;
+  border: 2px solid color-mix(in srgb, var(--typing-accent) 82%, white);
+  box-shadow:
+    0 0 18px color-mix(in srgb, var(--typing-accent) 52%, transparent),
+    inset 0 0 12px color-mix(in srgb, var(--typing-accent) 20%, transparent);
+  height: 22px;
+  transform: translate(-50%, -50%) scale(.25);
+  width: 22px;
+}
+
+@keyframes moaclab-caret {
+  50% { opacity: 0; }
+}
+
+.moaclab-typing-modal__flow { margin: 0; }
+
+.moaclab-typing-modal__flow-meta {
+  align-items: center;
+  color: var(--typing-faint);
+  display: flex;
+  font: 600 12px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  gap: 18px;
+  letter-spacing: 0;
+  margin-bottom: 10px;
+}
+
+.moaclab-typing-modal__flow-meta strong {
+  color: var(--typing-accent);
+  font-weight: 650;
+  letter-spacing: 0;
+}
+
+.moaclab-typing-modal__flow-meta b {
+  color: var(--typing-muted);
+  font-weight: 650;
+}
+
+.moaclab-typing-modal__space-key {
+  border: 1px solid var(--typing-line);
+  border-radius: 5px;
+  color: var(--typing-muted);
+  margin-left: auto;
+  padding: 5px 13px;
+  transform-origin: center bottom;
+}
+
+.moaclab-typing-modal__flow-track {
+  background: var(--typing-line);
+  border-radius: 999px;
+  height: 6px;
+  overflow: hidden;
+  position: relative;
+}
+
+.moaclab-typing-modal__flow-track > i {
+  background: linear-gradient(90deg, var(--typing-accent), color-mix(in srgb, var(--typing-accent) 72%, white));
+  border-radius: inherit;
+  display: block;
+  height: 100%;
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 120ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.moaclab-typing-modal__flow-track > span {
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--typing-accent) 70%, white), transparent);
+  inset: -3px 0;
+  opacity: 0;
+  position: absolute;
+  transform: scaleX(.04);
+  transform-origin: center;
+}
+
+.moaclab-typing-modal.is-flow-hot .moaclab-typing-modal__flow-track {
+  box-shadow: 0 0 22px color-mix(in srgb, var(--typing-accent) 42%, transparent);
+}
+
+.moaclab-typing-modal__stats {
+  align-items: flex-end;
+  display: flex;
+  gap: 32px;
+  margin-top: 24px;
+  padding-top: 0;
+}
+
+.moaclab-typing-modal__stat {
+  min-width: 76px;
+}
+
+.moaclab-typing-modal__stat strong {
+  display: block;
+  font: 620 30px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0;
+}
+
+.moaclab-typing-modal__stat span {
+  color: var(--typing-muted);
+  display: block;
+  font-size: 12px;
+  margin-top: 7px;
+}
+
+.moaclab-typing-modal__stat b {
+  font-weight: 560;
+}
+
+.moaclab-typing-modal__hint {
+  display: none;
+}
+
+.moaclab-typing-modal__result {
+  align-items: center;
+  background: color-mix(in srgb, var(--secondary, #fff) 78%, transparent);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  opacity: 0;
+  padding: 24px;
+  position: absolute;
+  transition: opacity 160ms ease-out;
+  z-index: 8;
+}
+
+.moaclab-typing-modal__result[hidden] { display: none; }
+.moaclab-typing-modal__result[data-open="true"] { opacity: 1; }
+
+.moaclab-typing-modal__result-card {
+  background: var(--secondary, #fff);
+  border: 1px solid var(--typing-line);
+  border-radius: 20px;
+  box-shadow: 0 28px 80px color-mix(in srgb, var(--typing-ink) 18%, transparent);
+  padding: 30px;
+  text-align: center;
+  transform: translateY(10px) scale(.97);
+  transition: transform 220ms cubic-bezier(.22, 1, .36, 1);
+  width: min(440px, 100%);
+}
+
+.moaclab-typing-modal__result[data-open="true"] .moaclab-typing-modal__result-card { transform: translateY(0) scale(1); }
+.moaclab-typing-modal__result-card > svg { color: var(--typing-accent); height: 22px; width: 22px; }
+.moaclab-typing-modal__result-card > small { color: var(--typing-muted); display: block; font-size: 11px; margin-top: 12px; }
+.moaclab-typing-modal__result-card h3 { font-size: 22px; letter-spacing: 0; margin: 5px 0 24px; }
+.moaclab-typing-modal__result-score strong { color: var(--typing-accent); display: block; font: 650 64px/.9 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0; }
+.moaclab-typing-modal__result-score span { color: var(--typing-muted); display: block; font-size: 11px; margin-top: 10px; }
+.moaclab-typing-modal__result-grid { border-bottom: 1px solid var(--typing-line); border-top: 1px solid var(--typing-line); display: grid; grid-template-columns: repeat(3, 1fr); margin: 28px 0 22px; padding: 18px 0; }
+.moaclab-typing-modal__result-grid span { display: grid; gap: 6px; }
+.moaclab-typing-modal__result-grid span + span { border-left: 1px solid var(--typing-line); }
+.moaclab-typing-modal__result-grid b { font: 620 14px/1.1 ui-monospace, SFMono-Regular, Menlo, monospace; }
+.moaclab-typing-modal__result-grid small { color: var(--typing-muted); font-size: 10px; }
+.moaclab-typing-modal__result-restart { align-items: center; background: var(--typing-ink); border: 0; border-radius: 10px; color: var(--secondary, #fff); cursor: pointer; display: inline-flex; gap: 10px; justify-content: center; min-height: 46px; padding: 0 16px; }
+.moaclab-typing-modal__result-restart svg { height: 18px; width: 18px; }
+.moaclab-typing-modal__result-restart kbd { border: 1px solid color-mix(in srgb, currentColor 32%, transparent); border-radius: 4px; font: 600 9px/1 ui-monospace, SFMono-Regular, Menlo, monospace; padding: 4px 5px; }
+.moaclab-typing-modal__result-restart:focus-visible { outline: 3px solid color-mix(in srgb, var(--typing-accent) 45%, transparent); outline-offset: 3px; }
+
+.moaclab-typing-modal__controls {
+  border-top: 1px solid var(--typing-line);
+  flex: 0 0 auto;
+  container-type: inline-size;
+  margin: 0 auto;
+  max-width: 1040px;
+  min-width: 0;
+  padding: 12px 0 18px;
+  position: relative;
+  width: 100%;
+}
+
+.moaclab-typing-modal__settings {
+  align-items: center;
+  background: var(--primary-very-low, #f4f5f3);
+  border: 1px solid var(--typing-line);
+  border-radius: 8px;
+  display: flex;
+  gap: 4px;
+  min-height: 58px;
+  min-width: 0;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  padding: 6px;
+}
+
+@container (max-width: 600px) {
+  .moaclab-typing-modal__icon-button > span:not(.moaclab-typing-modal__sr-only),
+  .moaclab-typing-modal__icon-button kbd {
+    display: none;
+  }
+}
+
+.moaclab-typing-modal__icon-button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  color: var(--typing-muted);
+  cursor: pointer;
+  display: inline-flex;
+  gap: 7px;
+  height: 44px;
+  justify-content: center;
+  min-width: 44px;
+  flex-shrink: 0;
+  padding: 0 10px;
+  position: relative;
+  transition: background-color 120ms ease, color 120ms ease, transform 120ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.moaclab-typing-modal__icon-button svg,
+.moaclab-typing-modal__choice svg,
+.moaclab-typing-modal__effect-choice svg {
+  flex: 0 0 auto;
+  height: 18px;
+  width: 18px;
+}
+
+.moaclab-typing-modal__icon-button.is-active,
+.moaclab-typing-modal__icon-button[aria-expanded="true"] {
+  background: color-mix(in srgb, var(--typing-accent) 10%, transparent);
+  color: var(--typing-accent);
+}
+
+.moaclab-typing-modal__icon-button.is-muted { color: var(--typing-muted); }
+.moaclab-typing-modal__icon-button:active { transform: scale(.97); }
+
+.moaclab-typing-modal__icon-button kbd {
+  background: var(--secondary, #fff);
+  border: 1px solid var(--typing-line);
+  border-radius: 4px;
+  color: var(--typing-faint);
+  font: 600 9px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  padding: 4px 5px;
+}
+
+.moaclab-typing-modal__settings-divider {
+  background: var(--typing-line);
+  height: 24px;
+  margin: 0 3px;
+  width: 1px;
+}
+
+.moaclab-typing-modal__settings-spacer { flex: 1; }
+
+.moaclab-typing-modal__settings-panel {
+  background: var(--secondary, #fff);
+  border: 1px solid var(--typing-line);
+  border-radius: 14px;
+  bottom: calc(100% + 10px);
+  box-shadow: 0 18px 48px color-mix(in srgb, var(--typing-ink) 12%, transparent);
+  left: 0;
+  max-width: min(440px, 100%);
+  opacity: 0;
+  padding: 14px;
+  position: absolute;
+  transform: translateY(5px) scale(.94);
+  transform-origin: left bottom;
+  transition: opacity 120ms ease-out, transform 160ms cubic-bezier(0.22, 1, 0.36, 1);
+  width: max-content;
+  z-index: 4;
+}
+
+.moaclab-typing-modal__settings-panel[hidden] { display: none; }
+
+.moaclab-typing-modal__settings-panel[data-open="true"] {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.moaclab-typing-modal__settings-panel--effects {
+  max-width: min(520px, 100%);
+  width: 520px;
+}
+
+.moaclab-typing-modal__settings-panel > strong {
+  color: var(--typing-muted);
+  display: block;
+  font: 650 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0;
+  margin: 2px 3px 12px;
+  text-transform: uppercase;
+}
+
+.moaclab-typing-modal__choice-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.moaclab-typing-modal__choice,
+.moaclab-typing-modal__pill {
+  align-items: center;
+  background: var(--primary-very-low, #f4f5f3);
+  border: 1px solid transparent;
+  border-radius: 9px;
+  color: var(--typing-muted);
+  cursor: pointer;
+  display: inline-flex;
+  gap: 7px;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 13px;
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease, transform 120ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.moaclab-typing-modal__choice.is-active,
+.moaclab-typing-modal__pill.is-active {
+  background: color-mix(in srgb, var(--typing-accent) 9%, transparent);
+  border-color: color-mix(in srgb, var(--typing-accent) 18%, transparent);
+  color: var(--typing-accent);
+}
+
+.moaclab-typing-modal__choice:active,
+.moaclab-typing-modal__pill:active { transform: scale(.97); }
+
+.moaclab-typing-modal__effect-list {
+  display: grid;
+  gap: 6px;
+}
+
+.moaclab-typing-modal__effect-choice {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 10px;
+  color: var(--typing-muted);
+  cursor: pointer;
+  display: grid;
+  gap: 11px;
+  grid-template-columns: 24px 1fr 18px;
+  min-height: 58px;
+  padding: 8px 10px;
+  text-align: left;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.moaclab-typing-modal__effect-choice span { display: grid; gap: 3px; }
+.moaclab-typing-modal__effect-choice b { color: var(--typing-ink); font-size: 13px; font-weight: 620; }
+.moaclab-typing-modal__effect-choice small { font-size: 11px; line-height: 1.35; }
+.moaclab-typing-modal__effect-choice > i { border: 1px solid currentColor; border-radius: 999px; height: 16px; position: relative; width: 16px; }
+.moaclab-typing-modal__effect-choice.is-active { background: color-mix(in srgb, var(--typing-accent) 7%, transparent); color: var(--typing-accent); }
+.moaclab-typing-modal__effect-choice.is-active > i::after { background: currentColor; border-radius: inherit; content: ""; inset: 3px; position: absolute; }
+
+.moaclab-typing-modal__icon-button:focus-visible,
+.moaclab-typing-modal__choice:focus-visible,
+.moaclab-typing-modal__pill:focus-visible,
+.moaclab-typing-modal__effect-choice:focus-visible {
+  outline: 2px solid var(--typing-accent);
+  outline-offset: 2px;
+}
+
+.moaclab-typing-modal__sr-only,
+.moaclab-typing-sr-only {
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  height: 1px;
+  overflow: hidden;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .moaclab-typing-modal__icon-button:hover,
+  .moaclab-typing-modal__choice:hover,
+  .moaclab-typing-modal__pill:hover,
+  .moaclab-typing-modal__effect-choice:hover { background-color: color-mix(in srgb, var(--typing-accent) 7%, var(--secondary, #fff)); color: var(--typing-accent); }
+
+  .moaclab-typing-modal__icon-button[data-tooltip]::after {
+    background: var(--typing-ink);
+    border-radius: 5px;
+    bottom: calc(100% + 8px);
+    color: var(--secondary, #fff);
+    content: attr(data-tooltip);
+    font-size: 10px;
+    left: 50%;
+    opacity: 0;
+    padding: 5px 7px;
+    pointer-events: none;
+    position: absolute;
+    transform: translate(-50%, 3px);
+    transition: opacity 120ms ease-out, transform 120ms ease-out;
+    white-space: nowrap;
+    z-index: 5;
+  }
+
+  .moaclab-typing-modal__icon-button[data-tooltip]:hover::after,
+  .moaclab-typing-modal__icon-button[data-tooltip]:focus-visible::after {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+
+  .moaclab-typing-modal__icon-button[aria-expanded="true"]::after { display: none; }
+}
+
+@media (max-width: 700px) {
+  .moaclab-typing-route #main-outlet,
+  .moaclab-typing-page {
+    height: auto;
+  }
+
+  .moaclab-typing-route #main-outlet {
+    height: auto;
+    min-height: calc(100dvh - var(--header-offset, 56px));
+  }
+
+  body.moaclab-typing-route #main-outlet-wrapper #main-outlet > #moaclab-typing-page { padding-inline: 12px; }
+
+  .moaclab-typing-modal {
+    padding: 0 4px 12px;
+  }
+
+  .moaclab-typing-modal__stage {
+    min-height: 0;
+    padding: 24px 0 20px;
+  }
+
+  .moaclab-typing-modal__text {
+    gap: 12px 16px;
+    grid-template-rows: repeat(6, 72px);
+    grid-auto-rows: 72px;
+    height: auto;
+    margin-top: 16px;
+  }
+
+  .moaclab-typing-modal__word {
+    gap: 6px;
+    height: 72px;
+    padding-block: 3px;
+  }
+
+  .moaclab-typing-modal__hanzi {
+    font-size: 16px;
+  }
+
+  .moaclab-typing-modal__pinyin {
+    font-size: min(24px, calc((100cqi - 4px) / (var(--typing-chars, 12) * .62)));
+  }
+
+  .moaclab-typing-modal__stats {
+    gap: 20px;
+    padding-top: 0;
+  }
+
+  .moaclab-typing-modal__flow {
+    margin: 0;
+  }
+
+  .moaclab-typing-modal__flow-meta {
+    gap: 12px;
+  }
+
+  .moaclab-typing-modal__space-key {
+    padding-left: 9px;
+    padding-right: 9px;
+  }
+
+  .moaclab-typing-modal__stat {
+    min-width: 60px;
+  }
+
+  .moaclab-typing-modal__stat strong {
+    font-size: 25px;
+  }
+
+  .moaclab-typing-modal__controls {
+    overflow: visible;
+  }
+
+  .moaclab-typing-modal__settings {
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    scrollbar-width: none;
+  }
+
+  .moaclab-typing-modal__settings::-webkit-scrollbar { display: none; }
+
+  .moaclab-typing-modal__icon-button > span:not(.moaclab-typing-modal__sr-only),
+  .moaclab-typing-modal__icon-button kbd {
+    display: none;
+  }
+
+  .moaclab-typing-modal__settings-spacer {
+    min-width: 4px;
+  }
+
+  .moaclab-typing-modal__settings-panel,
+  .moaclab-typing-modal__settings-panel--effects {
+    max-width: 100%;
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .moaclab-typing-modal *,
+  .moaclab-typing-modal *::before,
+  .moaclab-typing-modal *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
