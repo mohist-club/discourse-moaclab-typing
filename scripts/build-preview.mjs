@@ -25,7 +25,7 @@ await writeFile("output/preview/index.html", `<!doctype html>
 <style>
 :root{--primary:#191a1c;--secondary:#fff;--tertiary:#008bbd;--primary-very-low:#f5f6f7;--header-offset:56px}
 body{margin:0;font:14px system-ui;background:var(--secondary);color:var(--primary)}
-header{height:56px;padding:0 24px;display:flex;align-items:center;border-bottom:1px solid #ddd}
+header{box-sizing:border-box;height:56px;padding:0 24px;display:flex;align-items:center;border-bottom:1px solid #ddd}
 #main-outlet-wrapper{margin-left:248px}body.collapsed #main-outlet-wrapper{margin-left:32px}
 @media(max-width:700px){#main-outlet-wrapper{margin-left:0}}
 </style>

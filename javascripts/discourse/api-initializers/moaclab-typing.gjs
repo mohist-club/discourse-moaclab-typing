@@ -1,5 +1,6 @@
 import { apiInitializer } from "discourse/lib/api";
 import HSK_WORDS from "../lib/moaclab-typing-words";
+import { visibleRows, wordWindow, speedMilestone } from "../lib/moaclab-typing-layout";
 
 export default apiInitializer((api) => {
   const NS = "moaclab-typing";
@@ -73,6 +74,9 @@ export default apiInitializer((api) => {
   let routeObserver = null;
   let reconcileFrame = null;
   let layoutObserver = null;
+  let renderedTokens = null;
+  let renderedWindow = "";
+  let reachedSpeed = 0;
 
   const isTypingRoute = () => {
     const url = new URL(window.location.href);
@@ -93,7 +97,7 @@ export default apiInitializer((api) => {
   const randomText = () => {
     let pool = state.language === "en" ? englishWords : (chineseGroups[state.group] || chineseGroups.random).words.filter((word) => pinyin[word]);
     if (state.hard && state.language === "zh") pool = pool.filter((word) => pinyin[word].length >= 8);
-    const visibleWordCount = state.rows * state.columns;
+    const visibleWordCount = rowCount * state.columns;
     const selected = Array.from({ length: visibleWordCount }, (_, i) => pool[(i * 7 + Math.floor(Math.random() * pool.length)) % pool.length]);
     const display = selected.join(" ");
     const pronunciation = state.language === "zh" ? selected.map((word) => pinyin[word]).join(" ") : "";
@@ -134,22 +138,34 @@ export default apiInitializer((api) => {
     const el = root?.querySelector(`.${NS}-modal__text`);
     if (!el) return;
     root.style.setProperty("--typing-columns", String(state.columns));
-    let cursor = 0;
-    el.innerHTML = state.tokens.map((word, wi) => {
-      const py = state.language === "zh" ? (pinyin[word] || word) : word;
-      const start = cursor;
-      const chars = Array.from(py).map((ch, i) => {
-        const index = start + i;
-        const typed = state.typed[index];
-        const cls = index < state.typed.length ? (typed === ch ? "is-done" : "is-wrong") : index === state.typed.length ? "is-current" : "";
-        return `<span class="${NS}-modal__char ${cls}" data-index="${index}">${escape(ch)}</span>`;
+    root.style.setProperty("--typing-rows", String(state.rows));
+    const pronunciations = state.tokens.map((word) => state.language === "zh" ? (pinyin[word] || word) : word);
+    const { start: first, end: last } = wordWindow(pronunciations.map((word) => word.length), state.typed.length, state.columns, state.rows);
+    const windowKey = `${first}:${last}:${state.language}`;
+    if (renderedTokens !== state.tokens || renderedWindow !== windowKey) {
+      let cursor = 0;
+      el.innerHTML = state.tokens.map((word, wi) => {
+        const py = pronunciations[wi];
+        const start = cursor;
+        cursor += py.length + 1;
+        if (wi < first || wi >= last) return "";
+        const chars = Array.from(py).map((ch, i) => `<span class="${NS}-modal__char" data-index="${start + i}">${escape(ch)}</span>`).join("");
+        const lengthClass = py.length > 11 ? " is-long" : py.length > 8 ? " is-medium" : "";
+        return `<span class="${NS}-modal__word${lengthClass}" data-word-start="${start}" data-word-end="${start + py.length}" style="--typing-chars: ${py.length}"><span class="${NS}-modal__hanzi">${state.language === "zh" ? escape(word) : ""}</span><span class="${NS}-modal__pinyin">${chars}</span></span>`;
       }).join("");
-      const end = start + py.length;
-      cursor = end + (wi < state.tokens.length - 1 ? 1 : 0);
-      const isActive = state.typed.length >= start && state.typed.length <= end;
-      const lengthClass = py.length > 11 ? " is-long" : py.length > 8 ? " is-medium" : "";
-      return `<span class="${NS}-modal__word${lengthClass}${isActive ? " is-active" : ""}" style="--typing-chars: ${py.length}"><span class="${NS}-modal__hanzi">${state.language === "zh" ? escape(word) : ""}</span><span class="${NS}-modal__pinyin">${chars}</span></span>`;
-    }).join("");
+      renderedTokens = state.tokens;
+      renderedWindow = windowKey;
+    }
+    // Keep character nodes alive so one keystroke does not cancel the previous impact.
+    el.querySelectorAll("[data-index]").forEach((char) => {
+      const index = Number(char.dataset.index);
+      const status = index < state.typed.length ? (state.typed[index] === state.target[index] ? "is-done" : "is-wrong") : index === state.typed.length ? "is-current" : "";
+      char.className = `${NS}-modal__char ${status}`;
+    });
+    el.querySelectorAll(`.${NS}-modal__word`).forEach((word) => {
+      word.classList.toggle("is-active", state.typed.length >= Number(word.dataset.wordStart) && state.typed.length <= Number(word.dataset.wordEnd));
+    });
+    root.querySelector("[data-space-key]").classList.toggle("is-current", state.target[state.typed.length] === " ");
   }
 
   function renderFlow() {
@@ -313,6 +329,7 @@ export default apiInitializer((api) => {
 
   function reset() {
     clearInterval(state.timer);
+    reachedSpeed = 0;
     const generated = randomText();
     state.tokens = generated.tokens;
     state.target = generated.target;
@@ -353,7 +370,7 @@ export default apiInitializer((api) => {
     if (!root) return;
     const status = root.querySelector("[data-batch-status]");
     status.textContent = "";
-    requestAnimationFrame(() => { status.textContent = t("batch_updated", "Five new rows loaded"); });
+    requestAnimationFrame(() => { status.textContent = t("batch_updated", "New words loaded"); });
     const text = root.querySelector(`.${NS}-modal__text`);
     if (!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
       text?.animate([
@@ -436,15 +453,38 @@ export default apiInitializer((api) => {
     renderText();
     renderStats();
     feedback.forEach(triggerKeystrokeFeedback);
+    const milestone = speedMilestone(wpm(), state.elapsed);
+    if (milestone > reachedSpeed) {
+      reachedSpeed = milestone;
+      const root = document.getElementById(modalId);
+      if (state.effects.awesomenessBoost && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        root?.querySelector("[data-wpm]")?.animate([
+          { transform: "scale(1)", color: "var(--typing-ink)" },
+          { transform: "scale(1.16)", color: "var(--typing-accent)", offset: .35 },
+          { transform: "scale(1)", color: "var(--typing-ink)" },
+        ], { duration: 450, easing: "cubic-bezier(.22,1,.36,1)" });
+      }
+    }
     if (state.typed.length >= state.target.length) advanceBatch();
   }
 
   function onResize() {
     cancelAnimationFrame(state.resizeFrame);
     state.resizeFrame = requestAnimationFrame(() => {
+      if (!state.open) return;
+      const root = document.getElementById(modalId);
+      if (!root) return;
+      const viewport = window.visualViewport;
+      const available = Math.max(0, (viewport?.height || window.innerHeight) - Math.max(0, root.getBoundingClientRect().top + window.scrollY));
+      root.style.setProperty("--typing-available-height", `${available}px`);
+      const text = root.querySelector(`.${NS}-modal__text`);
+      const style = getComputedStyle(text);
+      const word = root.querySelector(`.${NS}-modal__word`);
+      const nextRows = visibleRows(text.clientHeight - 8, word?.offsetHeight || 80, parseFloat(style.rowGap) || 0);
       const nextColumns = getColumnCount();
-      if (!state.open || nextColumns === state.columns) return;
+      if (nextColumns === state.columns && nextRows === state.rows) return;
       state.columns = nextColumns;
+      state.rows = nextRows;
       // Reflow the current batch without discarding an in-progress result.
       if (state.running || state.typed.length || state.finished) renderText();
       else reset();
@@ -455,7 +495,8 @@ export default apiInitializer((api) => {
     if (!state.open || event.metaKey || event.ctrlKey || event.altKey) return;
     if (event.key === "Escape") {
       event.preventDefault();
-      if (!closeSettingPanels()) close();
+      if (closeSettingPanels()) document.querySelector(`.${NS}-modal__text`)?.focus({ preventScroll: true });
+      else close();
       return;
     }
     if (state.finished) return;
@@ -555,6 +596,7 @@ export default apiInitializer((api) => {
       state.open = false;
       document.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("resize", onResize);
+      window.visualViewport?.removeEventListener("resize", onResize);
     }
     const mount = ensureMount();
     if (!mount) return false;
@@ -569,7 +611,7 @@ export default apiInitializer((api) => {
     });
     root.querySelector(`.${NS}-modal__text`)?.focus();
     root.addEventListener("click", (event) => {
-      const target = event.target.closest("[data-close], [data-start], [data-sound], [data-duration], [data-group], [data-language], [data-hard], [data-effect], [data-panel-toggle]");
+      const target = event.target.closest("button[data-close], button[data-start], [data-sound], [data-duration], [data-group], [data-language], [data-hard], [data-effect], [data-panel-toggle]");
       if (!target) {
         if (!event.target.closest("[data-settings-panel], .moaclab-typing-modal__settings")) closeSettingPanels();
         return;
@@ -624,12 +666,15 @@ export default apiInitializer((api) => {
         root.querySelector("[data-current-effects]").textContent = String(enabledEffectCount());
         renderFlow();
       }
+      if (!target.matches("[data-effect]")) root.querySelector(`.${NS}-modal__text`)?.focus({ preventScroll: true });
     });
     document.addEventListener("keydown", onKeyDown);
     window.addEventListener("resize", onResize, { passive: true });
+    window.visualViewport?.addEventListener("resize", onResize, { passive: true });
     layoutObserver?.disconnect();
     layoutObserver = new ResizeObserver(onResize);
     layoutObserver.observe(root.querySelector(`.${NS}-modal__text`));
+    onResize();
     return true;
   }
 
@@ -643,6 +688,8 @@ export default apiInitializer((api) => {
     document.body.classList.remove(`${NS}-route`);
     document.removeEventListener("keydown", onKeyDown);
     window.removeEventListener("resize", onResize);
+    window.visualViewport?.removeEventListener("resize", onResize);
+    renderedTokens = null;
     cancelAnimationFrame(state.resizeFrame);
     layoutObserver?.disconnect();
     layoutObserver = null;

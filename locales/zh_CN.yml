@@ -33,7 +33,7 @@ zh_CN:
     settings_label: "打字设置"
     language_label: "语言"
     effects_label: "效果"
-    batch_updated: "已生成新的六行词组。"
+    batch_updated: "已载入新的词组。"
     flow_label: "输入气势"
     flow: "连击"
     flow_best: "最佳"

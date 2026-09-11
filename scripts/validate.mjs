@@ -3,6 +3,22 @@ import { readFile } from "node:fs/promises";
 import { build } from "esbuild";
 import { compile } from "sass";
 import words from "../javascripts/discourse/lib/moaclab-typing-words.js";
+import { visibleRows, wordWindow, speedMilestone } from "../javascripts/discourse/lib/moaclab-typing-layout.js";
+
+assert.equal(visibleRows(568, 80, 16), 6);
+assert.equal(visibleRows(350, 80, 16), 3);
+assert.equal(visibleRows(80, 80, 16), 1);
+assert.equal(visibleRows(0, 80, 16), 1);
+assert.equal(visibleRows(2000, 80, 16), 6);
+const lengths = Array(30).fill(5);
+assert.deepEqual(wordWindow(lengths, 0, 4, 3), { start: 0, end: 12 });
+assert.deepEqual(wordWindow(lengths, 71, 4, 3), { start: 0, end: 12 });
+assert.deepEqual(wordWindow(lengths, 72, 4, 3), { start: 12, end: 24 });
+assert.deepEqual(wordWindow(lengths, 71, 2, 2), { start: 8, end: 12 });
+assert.deepEqual(wordWindow(lengths, 179, 4, 3), { start: 24, end: 30 });
+assert.equal(speedMilestone(160, 2900), 0);
+assert.equal(speedMilestone(89, 3000), 60);
+assert.equal(speedMilestone(210, 4000), 180);
 
 const about = JSON.parse(await readFile(new URL("../about.json", import.meta.url)));
 assert.equal(about.component, true);

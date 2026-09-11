@@ -33,7 +33,7 @@ en:
     settings_label: "Typing settings"
     language_label: "Language"
     effects_label: "EFFECT"
-    batch_updated: "Six new rows loaded."
+    batch_updated: "New words loaded."
     flow_label: "WORD FLOW"
     flow: "flow"
     flow_best: "best"
