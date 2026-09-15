@@ -45,3 +45,4 @@ zh_CN:
     effect_flow_description: "连续输入时增强气势条冲击和光浪。"
     effect_space: "空格反馈"
     effect_space_description: "敲击空格时触发弹起和落下反馈。"
+    perfect_row: "完美一行"

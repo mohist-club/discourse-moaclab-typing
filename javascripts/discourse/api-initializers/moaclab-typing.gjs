@@ -1,6 +1,6 @@
 import { apiInitializer } from "discourse/lib/api";
 import HSK_WORDS from "../lib/moaclab-typing-words";
-import { visibleRows, wordWindow, speedMilestone } from "../lib/moaclab-typing-layout";
+import { completedRowAt, speedMilestone, tokenIndexAtOffset, visibleRows, wordWindow } from "../lib/moaclab-typing-layout";
 
 export default apiInitializer((api) => {
   const NS = "moaclab-typing";
@@ -70,7 +70,7 @@ export default apiInitializer((api) => {
   };
   const effectIds = ["pinyinBump", "awesomenessBoost", "spaceFeedback"];
   const enabledEffectCount = () => effectIds.filter((id) => Boolean(state.effects[id])).length;
-  const state = { open: false, duration: defaultDuration, rows: rowCount, columns: getColumnCount(), group: "random", language: "zh", hard: false, tokens: [], target: "", display: "", pinyin: "", typed: "", running: false, finished: false, startedAt: 0, elapsed: 0, correct: 0, total: 0, muted: true, timer: null, audio: null, streak: 0, bestStreak: Number(readStorage(flowBestKey, "0")) || 0, flowPower: 0, lastInputAt: 0, cadence: 0, effects: loadEffects(), resizeFrame: null };
+  const state = { open: false, duration: defaultDuration, rows: rowCount, columns: getColumnCount(), group: "random", language: "zh", hard: false, tokens: [], target: "", display: "", pinyin: "", typed: "", running: false, finished: false, startedAt: 0, elapsed: 0, correct: 0, total: 0, muted: true, timer: null, audio: null, streak: 0, bestStreak: Number(readStorage(flowBestKey, "0")) || 0, flowPower: 0, lastInputAt: 0, cadence: 0, effects: loadEffects(), resizeFrame: null, mistakeTokens: new Set(), celebratedRows: new Set(), restartArmed: false };
   let routeObserver = null;
   let reconcileFrame = null;
   let layoutObserver = null;
@@ -151,7 +151,7 @@ export default apiInitializer((api) => {
         if (wi < first || wi >= last) return "";
         const chars = Array.from(py).map((ch, i) => `<span class="${NS}-modal__char" data-index="${start + i}">${escape(ch)}</span>`).join("");
         const lengthClass = py.length > 11 ? " is-long" : py.length > 8 ? " is-medium" : "";
-        return `<span class="${NS}-modal__word${lengthClass}" data-word-start="${start}" data-word-end="${start + py.length}" style="--typing-chars: ${py.length}"><span class="${NS}-modal__hanzi">${state.language === "zh" ? escape(word) : ""}</span><span class="${NS}-modal__pinyin">${chars}</span></span>`;
+        return `<span class="${NS}-modal__word${lengthClass}" data-token-index="${wi}" data-word-start="${start}" data-word-end="${start + py.length}" style="--typing-chars: ${py.length}"><span class="${NS}-modal__hanzi">${state.language === "zh" ? escape(word) : ""}</span><span class="${NS}-modal__pinyin">${chars}</span></span>`;
       }).join("");
       renderedTokens = state.tokens;
       renderedWindow = windowKey;
@@ -327,8 +327,57 @@ export default apiInitializer((api) => {
     renderFlow();
   }
 
+  function clearRestartShortcut() {
+    state.restartArmed = false;
+    document.getElementById(modalId)?.classList.remove("is-restart-armed");
+  }
+
+  function celebratePerfectRow(row) {
+    const root = document.getElementById(modalId);
+    if (!root) return;
+    const status = root.querySelector("[data-batch-status]");
+    status.textContent = "";
+    requestAnimationFrame(() => { status.textContent = t("perfect_row", "Perfect row"); });
+    if (!state.effects.awesomenessBoost || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    const words = [...root.querySelectorAll(`.${NS}-modal__word`)].filter((word) => {
+      const index = Number(word.dataset.tokenIndex);
+      return index >= row.start && index < row.end;
+    });
+    if (!words.length) return;
+    words.forEach((word, index) => {
+      word.animate([
+        { transform: "translateY(0) scale(1)" },
+        { transform: "translateY(-7px) scale(1.035)", offset: .42 },
+        { transform: "translateY(0) scale(1)" },
+      ], { duration: 420, delay: index * 34, easing: "cubic-bezier(.22,1,.36,1)" });
+    });
+    const stage = root.querySelector(`.${NS}-modal__stage`);
+    const layer = root.querySelector("[data-impact-layer]");
+    if (!stage || !layer) return;
+    const boxes = words.map((word) => word.getBoundingClientRect());
+    const stageBox = stage.getBoundingClientRect();
+    const left = Math.min(...boxes.map((box) => box.left));
+    const top = Math.min(...boxes.map((box) => box.top));
+    const band = document.createElement("span");
+    band.className = `${NS}-modal__perfect-row`;
+    band.style.left = `${left - stageBox.left}px`;
+    band.style.top = `${top - stageBox.top}px`;
+    band.style.width = `${Math.max(...boxes.map((box) => box.right)) - left}px`;
+    band.style.height = `${Math.max(...boxes.map((box) => box.bottom)) - top}px`;
+    band.innerHTML = `<b>${escape(t("perfect_row", "Perfect row"))}</b>`;
+    layer.appendChild(band);
+    const animation = band.animate([
+      { opacity: 0, transform: "scaleX(.25)" },
+      { opacity: 1, transform: "scaleX(1)", offset: .28 },
+      { opacity: .9, transform: "scaleX(1)", offset: .68 },
+      { opacity: 0, transform: "scaleX(1.025)" },
+    ], { duration: 900, easing: "cubic-bezier(.22,1,.36,1)" });
+    animation.finished.then(() => band.remove(), () => band.remove());
+  }
+
   function reset() {
     clearInterval(state.timer);
+    clearRestartShortcut();
     reachedSpeed = 0;
     const generated = randomText();
     state.tokens = generated.tokens;
@@ -346,6 +395,8 @@ export default apiInitializer((api) => {
     state.flowPower = 0;
     state.lastInputAt = 0;
     state.cadence = 0;
+    state.mistakeTokens.clear();
+    state.celebratedRows.clear();
     renderText();
     renderStats();
     const root = document.getElementById(modalId);
@@ -365,6 +416,8 @@ export default apiInitializer((api) => {
     state.display = generated.display;
     state.pinyin = generated.pinyin;
     state.typed = "";
+    state.mistakeTokens.clear();
+    state.celebratedRows.clear();
     renderText();
     const root = document.getElementById(modalId);
     if (!root) return;
@@ -422,6 +475,8 @@ export default apiInitializer((api) => {
     if (!chars || state.finished) return;
     startClock();
     const feedback = [];
+    const completedRows = [];
+    const lengths = state.tokens.map((word) => (state.language === "zh" ? (pinyin[word] || word) : word).length);
     for (const rawChar of chars) {
       if (state.typed.length >= state.target.length) break;
       const inputAt = performance.now();
@@ -442,17 +497,25 @@ export default apiInitializer((api) => {
           writeStorage(flowBestKey, String(state.bestStreak));
         }
       } else {
+        state.mistakeTokens.add(tokenIndexAtOffset(lengths, index));
         state.streak = 0;
         state.flowPower = Math.max(0, state.flowPower * .78 - 7);
       }
       state.lastInputAt = inputAt;
       state.typed += char;
       feedback.push({ index, char, correct });
+      const row = correct ? completedRowAt(lengths, state.typed.length, state.columns) : null;
+      const rowHasMistake = row && [...state.mistakeTokens].some((token) => token >= row.start && token < row.end);
+      if (row && !rowHasMistake && !state.celebratedRows.has(row.key)) {
+        state.celebratedRows.add(row.key);
+        completedRows.push(row);
+      }
       playClick();
     }
     renderText();
     renderStats();
     feedback.forEach(triggerKeystrokeFeedback);
+    completedRows.forEach(celebratePerfectRow);
     const milestone = speedMilestone(wpm(), state.elapsed);
     if (milestone > reachedSpeed) {
       reachedSpeed = milestone;
@@ -493,14 +556,31 @@ export default apiInitializer((api) => {
 
   function onKeyDown(event) {
     if (!state.open || event.metaKey || event.ctrlKey || event.altKey) return;
+    const root = document.getElementById(modalId);
+    const interactiveTarget = event.target.closest?.("button, a, input, select, textarea");
+    if (event.key === "Tab" && !event.shiftKey && !interactiveTarget) {
+      event.preventDefault();
+      closeSettingPanels();
+      state.restartArmed = true;
+      root?.classList.add("is-restart-armed");
+      root?.querySelector("[data-start]:not([data-result-restart])")?.focus({ preventScroll: true });
+      return;
+    }
+    if (event.key === "Enter" && state.restartArmed) {
+      event.preventDefault();
+      reset();
+      root?.querySelector(`.${NS}-modal__text`)?.focus({ preventScroll: true });
+      return;
+    }
     if (event.key === "Escape") {
       event.preventDefault();
+      clearRestartShortcut();
       if (closeSettingPanels()) document.querySelector(`.${NS}-modal__text`)?.focus({ preventScroll: true });
       else close();
       return;
     }
     if (state.finished) return;
-    if (event.target.closest?.("button, a, input, select, textarea")) return;
+    if (interactiveTarget) return;
     if (event.code === "Backspace" || event.key === "Backspace") {
       event.preventDefault();
       state.typed = state.typed.slice(0, -1);
@@ -616,6 +696,7 @@ export default apiInitializer((api) => {
         if (!event.target.closest("[data-settings-panel], .moaclab-typing-modal__settings")) closeSettingPanels();
         return;
       }
+      if (!target.matches("[data-start]")) clearRestartShortcut();
       if (target.matches("[data-close]")) close();
       if (target.matches("[data-start]")) { reset(); root.querySelector(`.${NS}-modal__text`)?.focus(); }
       if (target.matches("[data-panel-toggle]")) { toggleSettingPanel(target.dataset.panelToggle, target); return; }

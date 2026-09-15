@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { build } from "esbuild";
 import { compile } from "sass";
 import words from "../javascripts/discourse/lib/moaclab-typing-words.js";
-import { visibleRows, wordWindow, speedMilestone } from "../javascripts/discourse/lib/moaclab-typing-layout.js";
+import { completedRowAt, speedMilestone, tokenIndexAtOffset, visibleRows, wordWindow } from "../javascripts/discourse/lib/moaclab-typing-layout.js";
 
 assert.equal(visibleRows(568, 80, 16), 6);
 assert.equal(visibleRows(350, 80, 16), 3);
@@ -22,6 +22,12 @@ assert.deepEqual(wordWindow(lengths, 179, 4, 3), { start: 24, end: 30 });
 assert.equal(speedMilestone(160, 2900), 0);
 assert.equal(speedMilestone(89, 3000), 60);
 assert.equal(speedMilestone(210, 4000), 180);
+assert.equal(tokenIndexAtOffset([2, 4, 3], 0), 0);
+assert.equal(tokenIndexAtOffset([2, 4, 3], 2), 0);
+assert.equal(tokenIndexAtOffset([2, 4, 3], 3), 1);
+assert.deepEqual(completedRowAt([2, 4, 3, 5], 7, 2), { start: 0, end: 2, key: "2:0:2" });
+assert.deepEqual(completedRowAt([2, 4, 3, 5], 17, 2), { start: 2, end: 4, key: "2:2:4" });
+assert.equal(completedRowAt([2, 4, 3, 5], 8, 2), null);
 
 const about = JSON.parse(await readFile(new URL("../about.json", import.meta.url)));
 assert.equal(about.component, true);
