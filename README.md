@@ -2,6 +2,10 @@
 
 一个安装到 Discourse 的 Theme Component，通过 `/typing` 进入打字练习页面。页面路由由轻量配套插件 `discourse-moaclab-tools` 注册；侧栏入口默认不自动添加，可通过组件开关或 Discourse 后台导航菜单维护。
 
+## 2.6.1
+
+- 修复界面翻译一直显示英文：改用 `themePrefix` 读取主题翻译，中文站点显示 `locales/zh_CN.yml` 中的文案。
+
 ## 2.6.0
 
 - 输入错误恢复为照常接收：光标继续前进，错字标红加下划线，可用退格改正；改正后不再标记。

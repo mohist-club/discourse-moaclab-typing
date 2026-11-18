@@ -10,7 +10,10 @@ export default apiInitializer((api) => {
   const setting = (name, fallback) => themeSettings[name] ?? fallback;
   const t = (key, fallback) => {
     try {
-      return I18n.t(`${I18N_NS}.${key}`, { defaultValue: fallback });
+      // Theme translations live under theme_translations.<theme id>; themePrefix
+      // (injected by Discourse into theme modules) builds that path.
+      const path = typeof themePrefix === "function" ? themePrefix(`${I18N_NS}.${key}`) : `${I18N_NS}.${key}`;
+      return I18n.t(path, { defaultValue: fallback });
     } catch {
       return fallback;
     }
