@@ -252,38 +252,6 @@ body.moaclab-typing-route #main-outlet-wrapper #main-outlet > #moaclab-typing-pa
   width: 13px;
 }
 
-.moaclab-typing-modal__impact-layer .moaclab-typing-modal__impact-ring {
-  background: transparent;
-  border: 2px solid color-mix(in srgb, var(--typing-accent) 82%, white);
-  box-shadow:
-    0 0 18px color-mix(in srgb, var(--typing-accent) 52%, transparent),
-    inset 0 0 12px color-mix(in srgb, var(--typing-accent) 20%, transparent);
-  height: 22px;
-  transform: translate(-50%, -50%) scale(.25);
-  width: 22px;
-}
-
-.moaclab-typing-modal__perfect-row {
-  align-items: center;
-  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--typing-accent) 14%, transparent) 18%, color-mix(in srgb, var(--typing-accent) 22%, transparent) 50%, color-mix(in srgb, var(--typing-accent) 14%, transparent) 82%, transparent);
-  border-block: 1px solid color-mix(in srgb, var(--typing-accent) 30%, transparent);
-  display: flex;
-  justify-content: flex-end;
-  padding-inline: 8px;
-  position: absolute;
-  transform-origin: center;
-}
-
-.moaclab-typing-modal__perfect-row b {
-  background: var(--secondary, #fff);
-  border: 1px solid color-mix(in srgb, var(--typing-accent) 34%, transparent);
-  border-radius: 999px;
-  color: var(--typing-accent);
-  font: 650 10px/1 var(--typing-ui-font);
-  padding: 5px 8px;
-  text-transform: uppercase;
-}
-
 .moaclab-typing-modal.is-restart-armed [data-start]:not([data-result-restart]) {
   background: color-mix(in srgb, var(--typing-accent) 12%, transparent);
   color: var(--typing-accent);
@@ -333,10 +301,32 @@ body.moaclab-typing-route #main-outlet-wrapper #main-outlet > #moaclab-typing-pa
   color: var(--typing-accent);
 }
 
+.moaclab-typing-modal__flow-rail {
+  position: relative;
+}
+
+// Glowing head that rides the end of the filled meter; keystroke sparks start here.
+.moaclab-typing-modal__meter-head {
+  background: color-mix(in srgb, var(--typing-accent) 45%, white);
+  border-radius: 50%;
+  box-shadow:
+    0 0 10px var(--typing-accent),
+    0 0 24px color-mix(in srgb, var(--typing-accent) 55%, transparent);
+  height: 9px;
+  left: var(--flow-fill, 0%);
+  opacity: min(1, calc(var(--flow-glow, 0) * 1.6));
+  pointer-events: none;
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  transition: left 120ms cubic-bezier(0.22, 1, 0.36, 1), opacity 200ms ease-out;
+  width: 9px;
+}
+
 .moaclab-typing-modal__flow-track {
   background: var(--typing-line);
   border-radius: 999px;
-  height: 6px;
+  height: calc(5px + var(--flow-glow, 0) * 3px);
   overflow: hidden;
   position: relative;
 }
@@ -395,24 +385,6 @@ body.moaclab-typing-route #main-outlet-wrapper #main-outlet > #moaclab-typing-pa
   to { transform: translateX(380%); }
 }
 
-.moaclab-typing-modal__impact-layer .moaclab-typing-modal__cursor-ghost {
-  background: var(--typing-accent);
-  border-radius: 4px;
-  box-shadow: none;
-  height: var(--cursor-h);
-  left: 0;
-  top: 0;
-  transform: translate3d(var(--cursor-x), var(--cursor-y), 0);
-  width: var(--cursor-w);
-}
-
-.moaclab-typing-modal__impact-layer .moaclab-typing-modal__word-spark {
-  border-radius: 50%;
-  z-index: 2;
-  height: 5px;
-  width: 5px;
-}
-
 .moaclab-typing-modal__float-label {
   color: var(--typing-accent);
   font: 750 18px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -425,6 +397,18 @@ body.moaclab-typing-route #main-outlet-wrapper #main-outlet > #moaclab-typing-pa
 
 .moaclab-typing-modal__float-label.is-big {
   font-size: 26px;
+}
+
+.moaclab-typing-modal__float-label.is-perfect {
+  font: 700 13px/1 var(--typing-ui-font);
+  letter-spacing: .04em;
+}
+
+.moaclab-typing-modal__impact-layer .moaclab-typing-modal__meter-spark {
+  height: 2px;
+  transform-origin: center;
+  width: 9px;
+  z-index: 2;
 }
 
 .moaclab-typing-modal__impact-layer .moaclab-typing-modal__overdrive-shard {

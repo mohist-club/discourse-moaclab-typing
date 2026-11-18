@@ -199,7 +199,6 @@ export default apiInitializer((api) => {
       box = { left: previous.right + 2, top: previous.top, width, height: previous.height };
     }
     const stageBox = stage.getBoundingClientRect();
-    if (!instant && cursor.dataset.ready === "true") leaveCursorGhost(cursor, stage);
     cursor.classList.toggle("is-instant", instant || cursor.dataset.ready !== "true");
     cursor.style.setProperty("--cursor-x", `${box.left - stageBox.left}px`);
     cursor.style.setProperty("--cursor-y", `${box.top - stageBox.top}px`);
@@ -210,22 +209,6 @@ export default apiInitializer((api) => {
       cursor.getBoundingClientRect();
       requestAnimationFrame(() => cursor.classList.remove("is-instant"));
     }
-  }
-
-  // Afterimage left behind when the cursor glides away during a strong flow.
-  function leaveCursorGhost(cursor, stage) {
-    if (!state.effects.awesomenessBoost || state.flowPower < 50 || reducedMotion()) return;
-    const layer = stage.querySelector("[data-impact-layer]");
-    if (!layer) return;
-    const ghost = document.createElement("i");
-    ghost.className = `${NS}-modal__cursor-ghost`;
-    ["--cursor-x", "--cursor-y", "--cursor-w", "--cursor-h"].forEach((name) => ghost.style.setProperty(name, cursor.style.getPropertyValue(name)));
-    layer.appendChild(ghost);
-    const animation = ghost.animate([
-      { opacity: Math.min(.55, state.flowPower / 160) },
-      { opacity: 0 },
-    ], { duration: 260, easing: "ease-out" });
-    animation.finished.then(() => ghost.remove(), () => ghost.remove());
   }
 
   // Short text that floats up from a point on the stage (combo milestones).
@@ -240,8 +223,8 @@ export default apiInitializer((api) => {
     layer.appendChild(label);
     const animation = label.animate([
       { opacity: 0, transform: "translate(-50%, 0) scale(.6)" },
-      { opacity: 1, transform: "translate(-50%, -14px) scale(1.12)", offset: .25 },
-      { opacity: 0, transform: "translate(-50%, -46px) scale(1)" },
+      { opacity: 1, transform: "translate(-50%, -8px) scale(1.12)", offset: .25 },
+      { opacity: 0, transform: "translate(-50%, -22px) scale(1)" },
     ], { duration: 820, easing: "cubic-bezier(.22,1,.36,1)" });
     animation.finished.then(() => label.remove(), () => label.remove());
   }
@@ -260,6 +243,7 @@ export default apiInitializer((api) => {
     }
     root.classList.toggle("is-flow-hot", state.effects.awesomenessBoost && state.flowPower >= 70);
     root.style.setProperty("--flow-glow", String(state.effects.awesomenessBoost ? state.flowPower / 100 : 0));
+    root.style.setProperty("--flow-fill", `${state.effects.awesomenessBoost ? state.flowPower : 0}%`);
     const overdrive = state.effects.awesomenessBoost && overdriveActive(state.flowPower, state.overdrive);
     if (overdrive !== state.overdrive) {
       state.overdrive = overdrive;
@@ -308,188 +292,109 @@ export default apiInitializer((api) => {
     });
   }
 
+  // Where the filled part of the flow meter ends, in stage coordinates.
+  function meterHead(root) {
+    const rail = root.querySelector("[data-flow-rail]");
+    const stage = root.querySelector(`.${NS}-modal__stage`);
+    if (!rail || !stage) return null;
+    const box = rail.getBoundingClientRect();
+    const stageBox = stage.getBoundingClientRect();
+    const fill = state.effects.awesomenessBoost ? Math.min(1, state.flowPower / 100) : 0;
+    return { x: box.left - stageBox.left + box.width * fill, y: box.top - stageBox.top + box.height / 2, left: box.left - stageBox.left, width: box.width };
+  }
+
+  // Comet-like sparks thrown off the meter head; they stay in the band above the words.
+  function meterSparks(root, count, spread) {
+    const head = meterHead(root);
+    const layer = root.querySelector("[data-impact-layer]");
+    if (!head || !layer) return;
+    for (let i = 0; i < count; i++) {
+      const spark = document.createElement("i");
+      spark.className = `${NS}-modal__meter-spark`;
+      spark.style.left = `${head.x}px`;
+      spark.style.top = `${head.y}px`;
+      layer.appendChild(spark);
+      const angle = Math.PI + (Math.random() - .5) * spread;
+      const distance = 18 + Math.random() * (14 + state.flowPower * .35);
+      const x = Math.cos(angle) * distance;
+      const y = Math.sin(angle) * distance * .55 - 4;
+      const animation = spark.animate([
+        { opacity: 1, transform: `translate(-50%, -50%) rotate(${angle}rad) scaleX(1.4)` },
+        { opacity: 0, transform: `translate(calc(-50% + ${x}px), calc(-50% + ${y}px)) rotate(${angle}rad) scaleX(.3)` },
+      ], { duration: 260 + Math.random() * 160, easing: "cubic-bezier(.22,1,.36,1)" });
+      animation.finished.then(() => spark.remove(), () => spark.remove());
+    }
+  }
+
+  // A bright pulse that runs along the filled meter (word completed, perfect row).
+  function meterSweep(root, strong = false) {
+    const flare = root.querySelector("[data-space-wave]");
+    flare?.animate([
+      { opacity: 0, transform: "translateX(-60%) scaleX(.12)" },
+      { opacity: strong ? 1 : .8, transform: "translateX(0) scaleX(.5)", offset: .45 },
+      { opacity: 0, transform: "translateX(60%) scaleX(.16)" },
+    ], { duration: strong ? 520 : 340, easing: "cubic-bezier(.22,1,.36,1)" });
+  }
+
   function triggerKeystrokeFeedback({ index, char, correct }) {
     const root = document.getElementById(modalId);
-    if (!root || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
-    const charElement = root.querySelector(`[data-index="${index}"]`);
+    if (!root || reducedMotion()) return;
     const cursor = root.querySelector("[data-cursor]");
-    const stageForEffects = root.querySelector(`.${NS}-modal__stage`);
+    const rail = root.querySelector("[data-flow-rail]");
+    const headDot = root.querySelector("[data-meter-head]");
 
-    if (cursor && correct && state.effects.pinyinBump) {
-      // Squash and recover on every hit; `scale` composes with the gliding transform.
-      cursor.animate([
-        { scale: "1 1" },
-        { scale: "1.28 .78", offset: .3 },
-        { scale: ".94 1.06", offset: .65 },
-        { scale: "1 1" },
-      ], { duration: 180, easing: "cubic-bezier(.22,1,.36,1)" });
-    } else if (cursor && !correct) {
-      cursor.animate([
-        { translate: "0 0", backgroundColor: "#d33d35" },
-        { translate: "-4px 0", offset: .25 },
-        { translate: "4px 0", offset: .55 },
-        { translate: "0 0" },
-      ], { duration: 220, easing: "cubic-bezier(.22,1,.36,1)" });
+    // The word area stays calm: only the cursor reports a mistake.
+    if (!correct) {
+      cursor?.animate([{ backgroundColor: "#d33d35" }, {}], { duration: 260, easing: "ease-out" });
+      rail?.animate([
+        { translate: "0 0", filter: "none" },
+        { translate: "-3px 0", filter: "hue-rotate(160deg) saturate(2)", offset: .25 },
+        { translate: "3px 0", offset: .55 },
+        { translate: "0 0", filter: "none" },
+      ], { duration: 240, easing: "cubic-bezier(.22,1,.36,1)" });
+      return;
     }
 
-    if (correct && char === " " && state.effects.pinyinBump) {
-      // Finished a word cleanly: lift its hanzi and throw a few sparks.
-      const word = root.querySelector(`.${NS}-modal__word[data-word-end="${index}"]`);
-      const clean = word && ![...word.querySelectorAll(`.${NS}-modal__char`)].some((ch) => !ch.classList.contains("is-done"));
-      const hanzi = clean ? word.querySelector(`.${NS}-modal__hanzi`) : null;
-      if (hanzi) {
-        hanzi.animate([
-          { transform: "translateY(0) scale(1)", backgroundColor: "transparent" },
-          { transform: "translateY(-5px) scale(1.06)", backgroundColor: "color-mix(in srgb, var(--typing-accent) 28%, transparent)", offset: .35 },
-          { transform: "translateY(0) scale(1)", backgroundColor: "transparent" },
-        ], { duration: 360, easing: "cubic-bezier(.22,1,.36,1)" });
-        const layer = root.querySelector("[data-impact-layer]");
-        if (layer && stageForEffects) {
-          const box = hanzi.getBoundingClientRect();
-          const stageBox = stageForEffects.getBoundingClientRect();
-          [[-18, -16], [0, -24], [18, -16], [26, -2]].forEach(([x, y], sparkIndex) => {
-            const spark = document.createElement("i");
-            spark.className = `${NS}-modal__word-spark`;
-            spark.style.left = `${box.left - stageBox.left + Math.min(box.width, 64) / 2}px`;
-            spark.style.top = `${box.top - stageBox.top + box.height / 2}px`;
-            layer.appendChild(spark);
-            const animation = spark.animate([
-              { opacity: 1, transform: "translate(-50%, -50%) scale(1)" },
-              { opacity: 0, transform: `translate(calc(-50% + ${x}px), calc(-50% + ${y}px)) scale(.3)` },
-            ], { duration: 380, delay: sparkIndex * 18, easing: "cubic-bezier(.22,1,.36,1)" });
-            animation.finished.then(() => spark.remove(), () => spark.remove());
-          });
-        }
-      }
+    const isBurstBeat = state.streak >= 4 && state.streak % 4 === 0;
+    if (state.effects.pinyinBump) {
+      headDot?.animate([
+        { scale: "1" },
+        { scale: isBurstBeat ? "2.1" : "1.6", offset: .3 },
+        { scale: "1" },
+      ], { duration: isBurstBeat ? 260 : 180, easing: "cubic-bezier(.22,1,.36,1)" });
+      meterSparks(root, isBurstBeat ? 7 : 2, isBurstBeat ? 1.6 : .9);
     }
 
-    if (correct && state.effects.awesomenessBoost && comboMilestones.includes(state.streak) && cursor && stageForEffects) {
-      const box = cursor.getBoundingClientRect();
-      const stageBox = stageForEffects.getBoundingClientRect();
-      floatLabel(root, `×${state.streak}`, box.left - stageBox.left + box.width / 2, box.top - stageBox.top - 6, state.streak >= 100 ? "is-big" : "");
-    }
-
-    if (charElement && correct && state.effects.pinyinBump) {
-      charElement.getAnimations().forEach((animation) => animation.cancel());
-      charElement.animate([
-        { opacity: 1, transform: "translateY(0) scale(1)" },
-        { opacity: 1, transform: "translateY(-9px) scale(1.18)", offset: .34 },
-        { opacity: 1, transform: "translateY(0) scale(1)" },
-      ], { duration: 170, easing: "cubic-bezier(0.22, 1, 0.36, 1)" });
-
-      const activeWord = charElement.closest(`.${NS}-modal__word`);
-      activeWord?.getAnimations().forEach((animation) => {
-        if (animation.effect?.target === activeWord) animation.cancel();
-      });
-      activeWord?.animate([
-        { transform: "translate3d(0, 0, 0) scale(1)" },
-        { transform: "translate3d(0, -4px, 0) scale(1.026)", offset: .42 },
-        { transform: "translate3d(0, 0, 0) scale(1)" },
-      ], { duration: 210, easing: "cubic-bezier(0.22, 1, 0.36, 1)" });
-
-      const layer = root.querySelector("[data-impact-layer]");
-      const stage = root.querySelector(`.${NS}-modal__stage`);
-      if (layer && stage) {
-        const box = charElement.getBoundingClientRect();
-        const stageBox = stage.getBoundingClientRect();
-        const isBurstBeat = state.streak >= 4 && state.streak % 4 === 0;
-        const particleVectors = isBurstBeat
-          ? [[-24, -14], [26, -11], [8, -24], [-28, 2], [30, 3], [0, -30], [17, -22], [-16, -21]]
-          : [[12, -15], [-9, -13], [2, -20]];
-        particleVectors.forEach(([x, y], particleIndex) => {
-          const particle = document.createElement("i");
-          particle.style.left = `${box.left - stageBox.left + box.width / 2}px`;
-          particle.style.top = `${box.top - stageBox.top + box.height / 2}px`;
-          layer.appendChild(particle);
-          const animation = particle.animate([
-            { opacity: .98, transform: "translate3d(0, 0, 0) scaleX(1) scaleY(1)" },
-            { opacity: .72, transform: `translate3d(${x * .44}px, ${y * .44}px, 0) scaleX(${isBurstBeat ? 2.2 : 1.75}) scaleY(1.15)`, offset: .35 },
-            { opacity: 0, transform: `translate3d(${x}px, ${y}px, 0) scaleX(${isBurstBeat ? 3.2 : 2.35}) scaleY(.75)` },
-          ], { duration: isBurstBeat ? 310 : 210, delay: particleIndex * 7, easing: "cubic-bezier(0.22, 1, 0.36, 1)" });
-          animation.finished.then(() => particle.remove(), () => particle.remove());
-        });
-
-        if (state.streak >= 8 && state.streak % 4 === 0) {
-          const ring = document.createElement("i");
-          ring.className = `${NS}-modal__impact-ring`;
-          ring.style.left = `${box.left - stageBox.left + box.width / 2}px`;
-          ring.style.top = `${box.top - stageBox.top + box.height / 2}px`;
-          layer.appendChild(ring);
-          const ringAnimation = ring.animate([
-            { opacity: .9, transform: "translate(-50%, -50%) scale(.22)" },
-            { opacity: .44, transform: "translate(-50%, -50%) scale(1.8)", offset: .42 },
-            { opacity: 0, transform: "translate(-50%, -50%) scale(4.4)" },
-          ], { duration: 390, easing: "cubic-bezier(0.22, 1, 0.36, 1)" });
-          ringAnimation.finished.then(() => ring.remove(), () => ring.remove());
-        }
-      }
-    } else if (charElement && !correct) {
-      charElement.animate([
-        { transform: "translateX(0)" },
-        { transform: "translateX(-3px)" },
-        { transform: "translateX(3px)" },
-        { transform: "translateX(0)" },
-      ], { duration: 150, easing: "cubic-bezier(0.22, 1, 0.36, 1)" });
-    }
-
-    if (correct && char === " " && state.effects.spaceFeedback) {
-      const spaceKey = root.querySelector("[data-space-key]");
-      const wave = root.querySelector("[data-space-wave]");
-      spaceKey?.animate([
-        { transform: "translateY(0) scale(1)" },
-        { transform: "translateY(-5px) scale(1.04)" },
-        { transform: "translateY(2px) scale(.98)" },
-        { transform: "translateY(0) scale(1)" },
-      ], { duration: 220, easing: "cubic-bezier(0.22, 1, 0.36, 1)" });
-      wave?.animate([
-        { opacity: 0, transform: "scaleX(.04)" },
-        { opacity: .7, transform: "scaleX(.72)", offset: .35 },
-        { opacity: 0, transform: "scaleX(1)" },
-      ], { duration: 280, easing: "cubic-bezier(0.22, 1, 0.36, 1)" });
-    }
-
-    if (correct && state.effects.awesomenessBoost && state.streak >= 4) {
+    if (state.effects.awesomenessBoost && state.streak >= 4) {
       const meter = root.querySelector("[data-flow-meter]");
-      const track = root.querySelector("[data-flow-track]");
-      const flare = root.querySelector("[data-space-wave]");
       const progress = state.flowPower / 100;
-      const isBurstBeat = state.streak % 4 === 0;
       meter?.animate([
         { transform: `scaleX(${progress}) scaleY(1)` },
-        { transform: `scaleX(${progress}) scaleY(${isBurstBeat ? 3.4 : 2.15})` },
+        { transform: `scaleX(${progress}) scaleY(${isBurstBeat ? 2.4 : 1.6})` },
         { transform: `scaleX(${progress}) scaleY(1)` },
       ], { duration: isBurstBeat ? 210 : 140, easing: "cubic-bezier(0.22, 1, 0.36, 1)" });
-
-      if (isBurstBeat) {
-        track?.animate([
-          { transform: "translateY(0) scaleY(1)" },
-          { transform: "translateY(-1px) scaleY(1.65)" },
-          { transform: "translateY(0) scaleY(1)" },
-        ], { duration: 210, easing: "cubic-bezier(0.22, 1, 0.36, 1)" });
-        flare?.animate([
-          { opacity: 0, transform: "translateX(-46%) scaleX(.06)" },
-          { opacity: .95, transform: "translateX(0) scaleX(.52)", offset: .42 },
-          { opacity: 0, transform: "translateX(46%) scaleX(.18)" },
-        ], { duration: 260, easing: "cubic-bezier(0.22, 1, 0.36, 1)" });
+      if (comboMilestones.includes(state.streak)) {
+        const head = meterHead(root);
+        // Keep the label clear of the SPACE key at the right end of the meter.
+        if (head) floatLabel(root, `×${state.streak}`, Math.max(head.left + 24, Math.min(head.x, head.left + head.width - 120)), head.y - 18, state.streak >= 100 ? "is-big" : "");
+        meterSparks(root, 12, Math.PI * 1.6);
       }
     }
 
-    if (correct && state.effects.awesomenessBoost && state.streak >= 12 && state.flowPower >= 70 && state.streak % 4 === 0) {
-      const text = root.querySelector(`.${NS}-modal__text`);
-      text?.getAnimations().forEach((animation) => animation.cancel());
-      text?.animate([
-        { transform: "translate3d(0, 0, 0)" },
-        { transform: "translate3d(-1.5px, .5px, 0)" },
-        { transform: "translate3d(1px, -.5px, 0)" },
-        { transform: "translate3d(0, 0, 0)" },
-      ], { duration: 90, easing: "linear" });
-
-      const stage = root.querySelector(`.${NS}-modal__stage`);
-      stage?.animate([
-        { transform: "translate3d(0, 0, 0) scale(1)" },
-        { transform: "translate3d(0, -1px, 0) scale(1.003)" },
-        { transform: "translate3d(0, 0, 0) scale(1)" },
-      ], { duration: 150, easing: "cubic-bezier(0.22, 1, 0.36, 1)" });
+    if (char === " ") {
+      const spaceKey = root.querySelector("[data-space-key]");
+      if (state.effects.spaceFeedback) {
+        spaceKey?.animate([
+          { transform: "translateY(0) scale(1)" },
+          { transform: "translateY(-5px) scale(1.04)" },
+          { transform: "translateY(2px) scale(.98)" },
+          { transform: "translateY(0) scale(1)" },
+        ], { duration: 220, easing: "cubic-bezier(0.22, 1, 0.36, 1)" });
+      }
+      // A cleanly finished word sends a pulse down the meter.
+      const word = root.querySelector(`.${NS}-modal__word[data-word-end="${index}"]`);
+      const clean = word && ![...word.querySelectorAll(`.${NS}-modal__char`)].some((ch) => !ch.classList.contains("is-done"));
+      if (clean && (state.effects.spaceFeedback || state.effects.awesomenessBoost)) meterSweep(root);
     }
   }
 
@@ -509,47 +414,17 @@ export default apiInitializer((api) => {
     document.getElementById(modalId)?.classList.remove("is-restart-armed");
   }
 
-  function celebratePerfectRow(row) {
+  function celebratePerfectRow() {
     const root = document.getElementById(modalId);
     if (!root) return;
     const status = root.querySelector("[data-batch-status]");
     status.textContent = "";
     requestAnimationFrame(() => { status.textContent = t("perfect_row", "Perfect row"); });
-    if (!state.effects.awesomenessBoost || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
-    const words = [...root.querySelectorAll(`.${NS}-modal__word`)].filter((word) => {
-      const index = Number(word.dataset.tokenIndex);
-      return index >= row.start && index < row.end;
-    });
-    if (!words.length) return;
-    words.forEach((word, index) => {
-      word.animate([
-        { transform: "translateY(0) scale(1)" },
-        { transform: "translateY(-7px) scale(1.035)", offset: .42 },
-        { transform: "translateY(0) scale(1)" },
-      ], { duration: 420, delay: index * 34, easing: "cubic-bezier(.22,1,.36,1)" });
-    });
-    const stage = root.querySelector(`.${NS}-modal__stage`);
-    const layer = root.querySelector("[data-impact-layer]");
-    if (!stage || !layer) return;
-    const boxes = words.map((word) => word.getBoundingClientRect());
-    const stageBox = stage.getBoundingClientRect();
-    const left = Math.min(...boxes.map((box) => box.left));
-    const top = Math.min(...boxes.map((box) => box.top));
-    const band = document.createElement("span");
-    band.className = `${NS}-modal__perfect-row`;
-    band.style.left = `${left - stageBox.left}px`;
-    band.style.top = `${top - stageBox.top}px`;
-    band.style.width = `${Math.max(...boxes.map((box) => box.right)) - left}px`;
-    band.style.height = `${Math.max(...boxes.map((box) => box.bottom)) - top}px`;
-    band.innerHTML = `<b>${escape(t("perfect_row", "Perfect row"))}</b>`;
-    layer.appendChild(band);
-    const animation = band.animate([
-      { opacity: 0, transform: "scaleX(.25)" },
-      { opacity: 1, transform: "scaleX(1)", offset: .28 },
-      { opacity: .9, transform: "scaleX(1)", offset: .68 },
-      { opacity: 0, transform: "scaleX(1.025)" },
-    ], { duration: 900, easing: "cubic-bezier(.22,1,.36,1)" });
-    animation.finished.then(() => band.remove(), () => band.remove());
+    if (!state.effects.awesomenessBoost || reducedMotion()) return;
+    meterSweep(root, true);
+    meterSparks(root, 10, Math.PI * 1.4);
+    const head = meterHead(root);
+    if (head) floatLabel(root, t("perfect_row", "Perfect row"), head.left + head.width / 2, head.y - 18, "is-perfect");
   }
 
   function reset() {
@@ -814,14 +689,14 @@ export default apiInitializer((api) => {
     const pills = durations.map((duration) => `<button type="button" class="${NS}-modal__choice${duration === state.duration ? " is-active" : ""}" data-duration="${duration}">${icon("clock")}<span>${duration}s</span></button>`).join("");
     const groups = Object.entries(chineseGroups).map(([id, group]) => `<button type="button" class="${NS}-modal__choice${state.group === id ? " is-active" : ""}" data-group="${id}">${icon("shuffle")}<span>${escape(t(`group_${id}`, group.label))}</span></button>`).join("");
     const effects = [
-      ["pinyinBump", "bump", "effect_bump", "Pinyin bump", "effect_bump_description", "Light character impact and particles"],
-      ["awesomenessBoost", "wave", "effect_flow", "Flow boost", "effect_flow_description", "Impact and light waves while typing continuously"],
-      ["spaceFeedback", "space", "effect_space", "Space feedback", "effect_space_description", "Space key lift and landing feedback"],
+      ["pinyinBump", "bump", "effect_bump", "Keystroke sparks", "effect_bump_description", "Meter head flashes and throws sparks on each correct key"],
+      ["awesomenessBoost", "wave", "effect_flow", "Flow boost", "effect_flow_description", "Meter glow, combo counts, perfect rows and overdrive"],
+      ["spaceFeedback", "space", "effect_space", "Space feedback", "effect_space_description", "Space key lift and a meter pulse after each word"],
     ].map(([id, iconName, labelKey, labelFallback, descriptionKey, descriptionFallback]) => `<button type="button" class="${NS}-modal__effect-choice${state.effects[id] ? " is-active" : ""}" data-effect="${id}" aria-pressed="${state.effects[id]}">${icon(iconName)}<span><b>${escape(t(labelKey, labelFallback))}</b><small>${escape(t(descriptionKey, descriptionFallback))}</small></span><i aria-hidden="true"></i></button>`).join("");
     const activeGroup = chineseGroups[state.group] || chineseGroups.random;
     const settingsLabel = escape(t("settings_label", "Typing settings"));
     return `<div class="${NS}-backdrop" data-close></div><section id="${modalId}" class="${NS}-modal" aria-label="${escape(t("title", "Typing Lab"))}">
-      <div class="${NS}-modal__stage"><div class="${NS}-modal__flow"><div class="${NS}-modal__flow-meta"><strong>${escape(t("flow_label", "WORD FLOW"))}</strong><span>${escape(t("flow", "flow"))} <b data-flow>×0</b></span><span>${escape(t("flow_best", "best"))} <b data-flow-best>×${state.bestStreak}</b></span><span class="${NS}-modal__space-key" data-space-key>${escape(t("space_key", "SPACE"))}</span></div><div class="${NS}-modal__flow-track" data-flow-track role="progressbar" aria-label="${escape(t("flow_meter", "Flow meter"))}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i data-flow-meter></i><span data-space-wave></span></div></div>
+      <div class="${NS}-modal__stage"><div class="${NS}-modal__flow"><div class="${NS}-modal__flow-meta"><strong>${escape(t("flow_label", "WORD FLOW"))}</strong><span>${escape(t("flow", "flow"))} <b data-flow>×0</b></span><span>${escape(t("flow_best", "best"))} <b data-flow-best>×${state.bestStreak}</b></span><span class="${NS}-modal__space-key" data-space-key>${escape(t("space_key", "SPACE"))}</span></div><div class="${NS}-modal__flow-rail" data-flow-rail><div class="${NS}-modal__flow-track" data-flow-track role="progressbar" aria-label="${escape(t("flow_meter", "Flow meter"))}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i data-flow-meter></i><span data-space-wave></span></div><span class="${NS}-modal__meter-head" data-meter-head aria-hidden="true"></span></div></div>
       <span class="${NS}-modal__cursor" data-cursor data-ready="false" aria-hidden="true"></span><div class="${NS}-modal__text" tabindex="0" role="textbox" aria-readonly="true" aria-label="${escape(t("hint", "Type the text above. Backspace works."))}"></div><span class="${NS}-modal__impact-layer" data-impact-layer aria-hidden="true"></span><span class="${NS}-sr-only" data-batch-status aria-live="polite"></span>
       <div class="${NS}-modal__stats"><div class="${NS}-modal__stat"><strong data-wpm>0</strong><span>${escape(t("wpm", "WPM"))}</span></div><div class="${NS}-modal__stat"><strong data-accuracy>100%</strong><span>${escape(t("accuracy", "accuracy"))} · <b data-errors>0</b> ${escape(t("errors", "errors"))}</span></div><div class="${NS}-modal__stat"><strong data-time>30 sec</strong><span>${escape(t("best", "best"))}: <b data-best>${escape(t("no_score", "No score yet"))}</b></span></div></div>
       <p class="${NS}-modal__hint">${escape(t("ready", "Start typing directly"))}</p></div>
