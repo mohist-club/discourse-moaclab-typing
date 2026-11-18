@@ -395,6 +395,38 @@ body.moaclab-typing-route #main-outlet-wrapper #main-outlet > #moaclab-typing-pa
   to { transform: translateX(380%); }
 }
 
+.moaclab-typing-modal__impact-layer .moaclab-typing-modal__cursor-ghost {
+  background: var(--typing-accent);
+  border-radius: 4px;
+  box-shadow: none;
+  height: var(--cursor-h);
+  left: 0;
+  top: 0;
+  transform: translate3d(var(--cursor-x), var(--cursor-y), 0);
+  width: var(--cursor-w);
+}
+
+.moaclab-typing-modal__impact-layer .moaclab-typing-modal__word-spark {
+  border-radius: 50%;
+  z-index: 2;
+  height: 5px;
+  width: 5px;
+}
+
+.moaclab-typing-modal__float-label {
+  color: var(--typing-accent);
+  font: 750 18px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  pointer-events: none;
+  position: absolute;
+  text-shadow: 0 0 14px color-mix(in srgb, var(--typing-accent) 45%, transparent);
+  white-space: nowrap;
+  z-index: 2;
+}
+
+.moaclab-typing-modal__float-label.is-big {
+  font-size: 26px;
+}
+
 .moaclab-typing-modal__impact-layer .moaclab-typing-modal__overdrive-shard {
   height: 2px;
   transform-origin: left center;

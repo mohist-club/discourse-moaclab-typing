@@ -15,6 +15,8 @@ export default apiInitializer((api) => {
       return fallback;
     }
   };
+  const reducedMotion = () => Boolean(window.matchMedia?.("(prefers-reduced-motion: reduce)").matches);
+  const comboMilestones = [10, 25, 50, 100, 150, 200, 300, 400, 500];
   const escape = (value) => String(value || "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
   const iconPaths = {
     restart: '<path d="M20 11a8 8 0 1 1-2.34-5.66L20 8M20 3v5h-5"/>',
@@ -194,6 +196,7 @@ export default apiInitializer((api) => {
       box = { left: previous.right + 2, top: previous.top, width, height: previous.height };
     }
     const stageBox = stage.getBoundingClientRect();
+    if (!instant && cursor.dataset.ready === "true") leaveCursorGhost(cursor, stage);
     cursor.classList.toggle("is-instant", instant || cursor.dataset.ready !== "true");
     cursor.style.setProperty("--cursor-x", `${box.left - stageBox.left}px`);
     cursor.style.setProperty("--cursor-y", `${box.top - stageBox.top}px`);
@@ -204,6 +207,40 @@ export default apiInitializer((api) => {
       cursor.getBoundingClientRect();
       requestAnimationFrame(() => cursor.classList.remove("is-instant"));
     }
+  }
+
+  // Afterimage left behind when the cursor glides away during a strong flow.
+  function leaveCursorGhost(cursor, stage) {
+    if (!state.effects.awesomenessBoost || state.flowPower < 50 || reducedMotion()) return;
+    const layer = stage.querySelector("[data-impact-layer]");
+    if (!layer) return;
+    const ghost = document.createElement("i");
+    ghost.className = `${NS}-modal__cursor-ghost`;
+    ["--cursor-x", "--cursor-y", "--cursor-w", "--cursor-h"].forEach((name) => ghost.style.setProperty(name, cursor.style.getPropertyValue(name)));
+    layer.appendChild(ghost);
+    const animation = ghost.animate([
+      { opacity: Math.min(.55, state.flowPower / 160) },
+      { opacity: 0 },
+    ], { duration: 260, easing: "ease-out" });
+    animation.finished.then(() => ghost.remove(), () => ghost.remove());
+  }
+
+  // Short text that floats up from a point on the stage (combo milestones).
+  function floatLabel(root, text, x, y, className) {
+    const layer = root.querySelector("[data-impact-layer]");
+    if (!layer) return;
+    const label = document.createElement("b");
+    label.className = `${NS}-modal__float-label ${className || ""}`;
+    label.textContent = text;
+    label.style.left = `${x}px`;
+    label.style.top = `${y}px`;
+    layer.appendChild(label);
+    const animation = label.animate([
+      { opacity: 0, transform: "translate(-50%, 0) scale(.6)" },
+      { opacity: 1, transform: "translate(-50%, -14px) scale(1.12)", offset: .25 },
+      { opacity: 0, transform: "translate(-50%, -46px) scale(1)" },
+    ], { duration: 820, easing: "cubic-bezier(.22,1,.36,1)" });
+    animation.finished.then(() => label.remove(), () => label.remove());
   }
 
   function renderFlow() {
@@ -272,6 +309,62 @@ export default apiInitializer((api) => {
     const root = document.getElementById(modalId);
     if (!root || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
     const charElement = root.querySelector(`[data-index="${index}"]`);
+    const cursor = root.querySelector("[data-cursor]");
+    const stageForEffects = root.querySelector(`.${NS}-modal__stage`);
+
+    if (cursor && correct && state.effects.pinyinBump) {
+      // Squash and recover on every hit; `scale` composes with the gliding transform.
+      cursor.animate([
+        { scale: "1 1" },
+        { scale: "1.28 .78", offset: .3 },
+        { scale: ".94 1.06", offset: .65 },
+        { scale: "1 1" },
+      ], { duration: 180, easing: "cubic-bezier(.22,1,.36,1)" });
+    } else if (cursor && !correct) {
+      cursor.animate([
+        { translate: "0 0", backgroundColor: "#d33d35" },
+        { translate: "-4px 0", offset: .25 },
+        { translate: "4px 0", offset: .55 },
+        { translate: "0 0" },
+      ], { duration: 220, easing: "cubic-bezier(.22,1,.36,1)" });
+    }
+
+    if (correct && char === " " && state.effects.pinyinBump) {
+      // Finished a word cleanly: lift its hanzi and throw a few sparks.
+      const word = root.querySelector(`.${NS}-modal__word[data-word-end="${index}"]`);
+      const clean = word && ![...word.querySelectorAll(`.${NS}-modal__char`)].some((ch) => !ch.classList.contains("is-done"));
+      const hanzi = clean ? word.querySelector(`.${NS}-modal__hanzi`) : null;
+      if (hanzi) {
+        hanzi.animate([
+          { transform: "translateY(0) scale(1)", backgroundColor: "transparent" },
+          { transform: "translateY(-5px) scale(1.06)", backgroundColor: "color-mix(in srgb, var(--typing-accent) 28%, transparent)", offset: .35 },
+          { transform: "translateY(0) scale(1)", backgroundColor: "transparent" },
+        ], { duration: 360, easing: "cubic-bezier(.22,1,.36,1)" });
+        const layer = root.querySelector("[data-impact-layer]");
+        if (layer && stageForEffects) {
+          const box = hanzi.getBoundingClientRect();
+          const stageBox = stageForEffects.getBoundingClientRect();
+          [[-18, -16], [0, -24], [18, -16], [26, -2]].forEach(([x, y], sparkIndex) => {
+            const spark = document.createElement("i");
+            spark.className = `${NS}-modal__word-spark`;
+            spark.style.left = `${box.left - stageBox.left + Math.min(box.width, 64) / 2}px`;
+            spark.style.top = `${box.top - stageBox.top + box.height / 2}px`;
+            layer.appendChild(spark);
+            const animation = spark.animate([
+              { opacity: 1, transform: "translate(-50%, -50%) scale(1)" },
+              { opacity: 0, transform: `translate(calc(-50% + ${x}px), calc(-50% + ${y}px)) scale(.3)` },
+            ], { duration: 380, delay: sparkIndex * 18, easing: "cubic-bezier(.22,1,.36,1)" });
+            animation.finished.then(() => spark.remove(), () => spark.remove());
+          });
+        }
+      }
+    }
+
+    if (correct && state.effects.awesomenessBoost && comboMilestones.includes(state.streak) && cursor && stageForEffects) {
+      const box = cursor.getBoundingClientRect();
+      const stageBox = stageForEffects.getBoundingClientRect();
+      floatLabel(root, `×${state.streak}`, box.left - stageBox.left + box.width / 2, box.top - stageBox.top - 6, state.streak >= 100 ? "is-big" : "");
+    }
 
     if (charElement && correct && state.effects.pinyinBump) {
       charElement.getAnimations().forEach((animation) => animation.cancel());
