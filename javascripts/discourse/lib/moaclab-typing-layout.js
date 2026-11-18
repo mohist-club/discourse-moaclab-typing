@@ -47,3 +47,9 @@ export function completedRowAt(lengths, cursor, columns) {
   }
   return null;
 }
+
+// Overdrive switches on near a full flow meter and holds until flow clearly
+// drops, so it does not flicker on the threshold.
+export function overdriveActive(power, active, on = 88, off = 70) {
+  return active ? power >= off : power >= on;
+}
