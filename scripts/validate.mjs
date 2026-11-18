@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { build } from "esbuild";
 import { compile } from "sass";
 import words from "../javascripts/discourse/lib/moaclab-typing-words.js";
-import { completedRowAt, speedMilestone, tokenIndexAtOffset, visibleRows, wordWindow } from "../javascripts/discourse/lib/moaclab-typing-layout.js";
+import { completedRowAt, overdriveActive, speedMilestone, tokenIndexAtOffset, visibleRows, wordWindow } from "../javascripts/discourse/lib/moaclab-typing-layout.js";
 
 assert.equal(visibleRows(568, 80, 16), 6);
 assert.equal(visibleRows(350, 80, 16), 3);
@@ -28,6 +28,10 @@ assert.equal(tokenIndexAtOffset([2, 4, 3], 3), 1);
 assert.deepEqual(completedRowAt([2, 4, 3, 5], 7, 2), { start: 0, end: 2, key: "2:0:2" });
 assert.deepEqual(completedRowAt([2, 4, 3, 5], 17, 2), { start: 2, end: 4, key: "2:2:4" });
 assert.equal(completedRowAt([2, 4, 3, 5], 8, 2), null);
+assert.equal(overdriveActive(87, false), false);
+assert.equal(overdriveActive(88, false), true);
+assert.equal(overdriveActive(75, true), true);
+assert.equal(overdriveActive(69, true), false);
 
 const about = JSON.parse(await readFile(new URL("../about.json", import.meta.url)));
 assert.equal(about.component, true);

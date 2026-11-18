@@ -1,6 +1,6 @@
 import { apiInitializer } from "discourse/lib/api";
 import HSK_WORDS from "../lib/moaclab-typing-words";
-import { completedRowAt, speedMilestone, tokenIndexAtOffset, visibleRows, wordWindow } from "../lib/moaclab-typing-layout";
+import { completedRowAt, overdriveActive, speedMilestone, tokenIndexAtOffset, visibleRows, wordWindow } from "../lib/moaclab-typing-layout";
 
 export default apiInitializer((api) => {
   const NS = "moaclab-typing";
@@ -70,7 +70,7 @@ export default apiInitializer((api) => {
   };
   const effectIds = ["pinyinBump", "awesomenessBoost", "spaceFeedback"];
   const enabledEffectCount = () => effectIds.filter((id) => Boolean(state.effects[id])).length;
-  const state = { open: false, duration: defaultDuration, rows: rowCount, columns: getColumnCount(), group: "random", language: "zh", hard: false, tokens: [], target: "", display: "", pinyin: "", typed: "", running: false, finished: false, startedAt: 0, elapsed: 0, correct: 0, total: 0, muted: true, timer: null, audio: null, streak: 0, bestStreak: Number(readStorage(flowBestKey, "0")) || 0, flowPower: 0, lastInputAt: 0, cadence: 0, effects: loadEffects(), resizeFrame: null, mistakeTokens: new Set(), celebratedRows: new Set(), restartArmed: false };
+  const state = { open: false, duration: defaultDuration, rows: rowCount, columns: getColumnCount(), group: "random", language: "zh", hard: false, tokens: [], target: "", display: "", pinyin: "", typed: "", running: false, finished: false, startedAt: 0, elapsed: 0, correct: 0, total: 0, muted: true, timer: null, audio: null, streak: 0, bestStreak: Number(readStorage(flowBestKey, "0")) || 0, flowPower: 0, lastInputAt: 0, cadence: 0, effects: loadEffects(), resizeFrame: null, mistakeTokens: new Set(), celebratedRows: new Set(), restartArmed: false, overdrive: false };
   let routeObserver = null;
   let reconcileFrame = null;
   let layoutObserver = null;
@@ -142,7 +142,8 @@ export default apiInitializer((api) => {
     const pronunciations = state.tokens.map((word) => state.language === "zh" ? (pinyin[word] || word) : word);
     const { start: first, end: last } = wordWindow(pronunciations.map((word) => word.length), state.typed.length, state.columns, state.rows);
     const windowKey = `${first}:${last}:${state.language}`;
-    if (renderedTokens !== state.tokens || renderedWindow !== windowKey) {
+    const rebuilt = renderedTokens !== state.tokens || renderedWindow !== windowKey;
+    if (rebuilt) {
       let cursor = 0;
       el.innerHTML = state.tokens.map((word, wi) => {
         const py = pronunciations[wi];
@@ -159,13 +160,47 @@ export default apiInitializer((api) => {
     // Keep character nodes alive so one keystroke does not cancel the previous impact.
     el.querySelectorAll("[data-index]").forEach((char) => {
       const index = Number(char.dataset.index);
-      const status = index < state.typed.length ? (state.typed[index] === state.target[index] ? "is-done" : "is-wrong") : index === state.typed.length ? "is-current" : "";
+      // Wrong keys never enter state.typed, so everything before the cursor is correct.
+      const status = index < state.typed.length ? "is-done" : index === state.typed.length ? "is-current" : "";
       char.className = `${NS}-modal__char ${status}`;
     });
     el.querySelectorAll(`.${NS}-modal__word`).forEach((word) => {
       word.classList.toggle("is-active", state.typed.length >= Number(word.dataset.wordStart) && state.typed.length <= Number(word.dataset.wordEnd));
     });
     root.querySelector("[data-space-key]").classList.toggle("is-current", state.target[state.typed.length] === " ");
+    placeCursor(rebuilt);
+  }
+
+  // One block cursor glides between letters (and across rows) instead of
+  // jumping; the current letter is drawn on top of it in the page colour.
+  function placeCursor(instant = false) {
+    const root = document.getElementById(modalId);
+    const cursor = root?.querySelector("[data-cursor]");
+    const stage = root?.querySelector(`.${NS}-modal__stage`);
+    if (!cursor || !stage) return;
+    const index = state.typed.length;
+    let box = root.querySelector(`[data-index="${index}"]`)?.getBoundingClientRect();
+    if (!box) {
+      // Waiting for a space: sit just after the word that was finished.
+      const previous = root.querySelector(`[data-index="${index - 1}"]`)?.getBoundingClientRect();
+      if (!previous) {
+        cursor.dataset.ready = "false";
+        return;
+      }
+      const width = Math.max(4, previous.width * .45);
+      box = { left: previous.right + 2, top: previous.top, width, height: previous.height };
+    }
+    const stageBox = stage.getBoundingClientRect();
+    cursor.classList.toggle("is-instant", instant || cursor.dataset.ready !== "true");
+    cursor.style.setProperty("--cursor-x", `${box.left - stageBox.left}px`);
+    cursor.style.setProperty("--cursor-y", `${box.top - stageBox.top}px`);
+    cursor.style.setProperty("--cursor-w", `${box.width}px`);
+    cursor.style.setProperty("--cursor-h", `${box.height}px`);
+    cursor.dataset.ready = "true";
+    if (cursor.classList.contains("is-instant")) {
+      cursor.getBoundingClientRect();
+      requestAnimationFrame(() => cursor.classList.remove("is-instant"));
+    }
   }
 
   function renderFlow() {
@@ -181,10 +216,52 @@ export default apiInitializer((api) => {
       track.setAttribute("aria-valuetext", `${Math.round(state.flowPower)}%`);
     }
     root.classList.toggle("is-flow-hot", state.effects.awesomenessBoost && state.flowPower >= 70);
+    root.style.setProperty("--flow-glow", String(state.effects.awesomenessBoost ? state.flowPower / 100 : 0));
+    const overdrive = state.effects.awesomenessBoost && overdriveActive(state.flowPower, state.overdrive);
+    if (overdrive !== state.overdrive) {
+      state.overdrive = overdrive;
+      root.classList.toggle("is-overdrive", overdrive);
+      if (overdrive) burstOverdrive(root);
+    }
     root.querySelectorAll("[data-effect]").forEach((button) => {
       const enabled = Boolean(state.effects[button.dataset.effect]);
       button.classList.toggle("is-active", enabled);
       button.setAttribute("aria-pressed", String(enabled));
+    });
+  }
+
+  function burstOverdrive(root) {
+    const status = root.querySelector("[data-batch-status]");
+    if (status) {
+      status.textContent = "";
+      requestAnimationFrame(() => { status.textContent = t("overdrive", "Overdrive"); });
+    }
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    const track = root.querySelector("[data-flow-track]");
+    const stage = root.querySelector(`.${NS}-modal__stage`);
+    const layer = root.querySelector("[data-impact-layer]");
+    track?.animate([
+      { filter: "brightness(1)", transform: "scaleY(1)" },
+      { filter: "brightness(1.9)", transform: "scaleY(2.4)", offset: .3 },
+      { filter: "brightness(1)", transform: "scaleY(1)" },
+    ], { duration: 520, easing: "cubic-bezier(.22,1,.36,1)" });
+    if (!track || !stage || !layer) return;
+    const trackBox = track.getBoundingClientRect();
+    const stageBox = stage.getBoundingClientRect();
+    const originX = trackBox.left - stageBox.left + trackBox.width * Math.min(1, state.flowPower / 100);
+    const originY = trackBox.top - stageBox.top + trackBox.height / 2;
+    [[-34, -26], [-12, -38], [14, -32], [36, -18], [-40, 10], [-18, 22], [20, 24], [42, 8]].forEach(([x, y], shardIndex) => {
+      const shard = document.createElement("i");
+      shard.className = `${NS}-modal__overdrive-shard`;
+      shard.style.left = `${originX}px`;
+      shard.style.top = `${originY}px`;
+      layer.appendChild(shard);
+      const rotate = Math.atan2(y, x) * 180 / Math.PI;
+      const animation = shard.animate([
+        { opacity: 1, transform: `rotate(${rotate}deg) translateX(0) scaleX(.6)` },
+        { opacity: 0, transform: `rotate(${rotate}deg) translateX(${Math.hypot(x, y) * 1.6}px) scaleX(1.4)` },
+      ], { duration: 460, delay: shardIndex * 12, easing: "cubic-bezier(.22,1,.36,1)" });
+      animation.finished.then(() => shard.remove(), () => shard.remove());
     });
   }
 
@@ -393,6 +470,8 @@ export default apiInitializer((api) => {
     state.total = 0;
     state.streak = 0;
     state.flowPower = 0;
+    state.overdrive = false;
+    document.getElementById(modalId)?.classList.remove("is-overdrive");
     state.lastInputAt = 0;
     state.cadence = 0;
     state.mistakeTokens.clear();
@@ -502,15 +581,17 @@ export default apiInitializer((api) => {
         state.flowPower = Math.max(0, state.flowPower * .78 - 7);
       }
       state.lastInputAt = inputAt;
-      state.typed += char;
       feedback.push({ index, char, correct });
+      playClick();
+      // A wrong key is counted (accuracy, flow reset) but the cursor stays put.
+      if (!correct) continue;
+      state.typed += char;
       const row = correct ? completedRowAt(lengths, state.typed.length, state.columns) : null;
       const rowHasMistake = row && [...state.mistakeTokens].some((token) => token >= row.start && token < row.end);
       if (row && !rowHasMistake && !state.celebratedRows.has(row.key)) {
         state.celebratedRows.add(row.key);
         completedRows.push(row);
       }
-      playClick();
     }
     renderText();
     renderStats();
@@ -545,7 +626,10 @@ export default apiInitializer((api) => {
       const word = root.querySelector(`.${NS}-modal__word`);
       const nextRows = visibleRows(text.clientHeight - 8, word?.offsetHeight || 80, parseFloat(style.rowGap) || 0);
       const nextColumns = getColumnCount();
-      if (nextColumns === state.columns && nextRows === state.rows) return;
+      if (nextColumns === state.columns && nextRows === state.rows) {
+        placeCursor(true);
+        return;
+      }
       state.columns = nextColumns;
       state.rows = nextRows;
       // Reflow the current batch without discarding an in-progress result.
@@ -638,7 +722,7 @@ export default apiInitializer((api) => {
     const settingsLabel = escape(t("settings_label", "Typing settings"));
     return `<div class="${NS}-backdrop" data-close></div><section id="${modalId}" class="${NS}-modal" aria-label="${escape(t("title", "Typing Lab"))}">
       <div class="${NS}-modal__stage"><div class="${NS}-modal__flow"><div class="${NS}-modal__flow-meta"><strong>${escape(t("flow_label", "WORD FLOW"))}</strong><span>${escape(t("flow", "flow"))} <b data-flow>×0</b></span><span>${escape(t("flow_best", "best"))} <b data-flow-best>×${state.bestStreak}</b></span><span class="${NS}-modal__space-key" data-space-key>${escape(t("space_key", "SPACE"))}</span></div><div class="${NS}-modal__flow-track" data-flow-track role="progressbar" aria-label="${escape(t("flow_meter", "Flow meter"))}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i data-flow-meter></i><span data-space-wave></span></div></div>
-      <div class="${NS}-modal__text" tabindex="0" role="textbox" aria-readonly="true" aria-label="${escape(t("hint", "Type the text above. Backspace works."))}"></div><span class="${NS}-modal__impact-layer" data-impact-layer aria-hidden="true"></span><span class="${NS}-sr-only" data-batch-status aria-live="polite"></span>
+      <span class="${NS}-modal__cursor" data-cursor data-ready="false" aria-hidden="true"></span><div class="${NS}-modal__text" tabindex="0" role="textbox" aria-readonly="true" aria-label="${escape(t("hint", "Type the text above. Backspace works."))}"></div><span class="${NS}-modal__impact-layer" data-impact-layer aria-hidden="true"></span><span class="${NS}-sr-only" data-batch-status aria-live="polite"></span>
       <div class="${NS}-modal__stats"><div class="${NS}-modal__stat"><strong data-wpm>0</strong><span>${escape(t("wpm", "WPM"))}</span></div><div class="${NS}-modal__stat"><strong data-accuracy>100%</strong><span>${escape(t("accuracy", "accuracy"))}</span></div><div class="${NS}-modal__stat"><strong data-time>30 sec</strong><span>${escape(t("best", "best"))}: <b data-best>${escape(t("no_score", "No score yet"))}</b></span></div></div>
       <p class="${NS}-modal__hint">${escape(t("ready", "Start typing directly"))}</p></div>
       <footer class="${NS}-modal__controls"><div class="${NS}-modal__settings" role="toolbar" aria-label="${settingsLabel}">
