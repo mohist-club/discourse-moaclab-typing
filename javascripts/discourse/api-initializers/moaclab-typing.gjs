@@ -111,6 +111,7 @@ export default apiInitializer((api) => {
     return format(state.correct / 5 / minutes);
   };
   const accuracy = () => state.total ? format((state.correct / state.total) * 100) : 100;
+  const errorCount = () => Math.max(0, state.total - state.correct);
 
   function playClick() {
     if (state.muted) return;
@@ -160,12 +161,14 @@ export default apiInitializer((api) => {
     // Keep character nodes alive so one keystroke does not cancel the previous impact.
     el.querySelectorAll("[data-index]").forEach((char) => {
       const index = Number(char.dataset.index);
-      // Wrong keys never enter state.typed, so everything before the cursor is correct.
-      const status = index < state.typed.length ? "is-done" : index === state.typed.length ? "is-current" : "";
+      const status = index < state.typed.length ? (state.typed[index] === state.target[index] ? "is-done" : "is-wrong") : index === state.typed.length ? "is-current" : "";
       char.className = `${NS}-modal__char ${status}`;
     });
     el.querySelectorAll(`.${NS}-modal__word`).forEach((word) => {
       word.classList.toggle("is-active", state.typed.length >= Number(word.dataset.wordStart) && state.typed.length <= Number(word.dataset.wordEnd));
+      // A letter typed where the separating space belongs has no glyph of its own; mark it after the word.
+      const spaceInput = state.typed[Number(word.dataset.wordEnd)];
+      word.classList.toggle("has-space-error", spaceInput !== undefined && spaceInput !== " ");
     });
     root.querySelector("[data-space-key]").classList.toggle("is-current", state.target[state.typed.length] === " ");
     placeCursor(rebuilt);
@@ -399,6 +402,7 @@ export default apiInitializer((api) => {
     if (!root) return;
     root.querySelector("[data-wpm]").textContent = String(wpm());
     root.querySelector("[data-accuracy]").textContent = `${accuracy()}%`;
+    root.querySelector("[data-errors]").textContent = String(errorCount());
     root.querySelector("[data-time]").textContent = `${Math.max(0, state.duration - Math.ceil(state.elapsed / 1000))} ${escape(t("seconds", "sec"))}`;
     root.querySelector("[data-best]").textContent = best() ? `${best()} ${escape(t("wpm", "WPM"))}` : t("no_score", "No score yet");
     renderFlow();
@@ -526,6 +530,7 @@ export default apiInitializer((api) => {
     renderStats();
     result.querySelector("[data-final-wpm]").textContent = String(score);
     result.querySelector("[data-final-accuracy]").textContent = `${accuracy()}%`;
+    result.querySelector("[data-final-errors]").textContent = String(errorCount());
     result.querySelector("[data-final-best]").textContent = `${best()} ${t("wpm", "WPM")}`;
     result.querySelector("[data-final-streak]").textContent = `×${state.bestStreak}`;
     result.hidden = false;
@@ -583,8 +588,7 @@ export default apiInitializer((api) => {
       state.lastInputAt = inputAt;
       feedback.push({ index, char, correct });
       playClick();
-      // A wrong key is counted (accuracy, flow reset) but the cursor stays put.
-      if (!correct) continue;
+      // Wrong keys are accepted and marked; Backspace corrects them.
       state.typed += char;
       const row = correct ? completedRowAt(lengths, state.typed.length, state.columns) : null;
       const rowHasMistake = row && [...state.mistakeTokens].some((token) => token >= row.start && token < row.end);
@@ -723,7 +727,7 @@ export default apiInitializer((api) => {
     return `<div class="${NS}-backdrop" data-close></div><section id="${modalId}" class="${NS}-modal" aria-label="${escape(t("title", "Typing Lab"))}">
       <div class="${NS}-modal__stage"><div class="${NS}-modal__flow"><div class="${NS}-modal__flow-meta"><strong>${escape(t("flow_label", "WORD FLOW"))}</strong><span>${escape(t("flow", "flow"))} <b data-flow>×0</b></span><span>${escape(t("flow_best", "best"))} <b data-flow-best>×${state.bestStreak}</b></span><span class="${NS}-modal__space-key" data-space-key>${escape(t("space_key", "SPACE"))}</span></div><div class="${NS}-modal__flow-track" data-flow-track role="progressbar" aria-label="${escape(t("flow_meter", "Flow meter"))}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i data-flow-meter></i><span data-space-wave></span></div></div>
       <span class="${NS}-modal__cursor" data-cursor data-ready="false" aria-hidden="true"></span><div class="${NS}-modal__text" tabindex="0" role="textbox" aria-readonly="true" aria-label="${escape(t("hint", "Type the text above. Backspace works."))}"></div><span class="${NS}-modal__impact-layer" data-impact-layer aria-hidden="true"></span><span class="${NS}-sr-only" data-batch-status aria-live="polite"></span>
-      <div class="${NS}-modal__stats"><div class="${NS}-modal__stat"><strong data-wpm>0</strong><span>${escape(t("wpm", "WPM"))}</span></div><div class="${NS}-modal__stat"><strong data-accuracy>100%</strong><span>${escape(t("accuracy", "accuracy"))}</span></div><div class="${NS}-modal__stat"><strong data-time>30 sec</strong><span>${escape(t("best", "best"))}: <b data-best>${escape(t("no_score", "No score yet"))}</b></span></div></div>
+      <div class="${NS}-modal__stats"><div class="${NS}-modal__stat"><strong data-wpm>0</strong><span>${escape(t("wpm", "WPM"))}</span></div><div class="${NS}-modal__stat"><strong data-accuracy>100%</strong><span>${escape(t("accuracy", "accuracy"))} · <b data-errors>0</b> ${escape(t("errors", "errors"))}</span></div><div class="${NS}-modal__stat"><strong data-time>30 sec</strong><span>${escape(t("best", "best"))}: <b data-best>${escape(t("no_score", "No score yet"))}</b></span></div></div>
       <p class="${NS}-modal__hint">${escape(t("ready", "Start typing directly"))}</p></div>
       <footer class="${NS}-modal__controls"><div class="${NS}-modal__settings" role="toolbar" aria-label="${settingsLabel}">
       <button type="button" class="${NS}-modal__icon-button" data-start data-tooltip="${escape(t("restart", "Restart"))}" aria-label="${escape(t("restart", "Restart"))}">${icon("restart")}<span class="${NS}-sr-only" data-restart-label>${escape(t("restart", "Restart"))}</span><kbd>Tab ↵</kbd></button>
@@ -740,7 +744,7 @@ export default apiInitializer((api) => {
       <div id="${modalId}-mode-panel" class="${NS}-modal__settings-panel" data-settings-panel="mode" data-open="false" hidden><strong>${escape(t("mode_label", "Mode"))}</strong><div class="${NS}-modal__choice-grid">${groups}</div></div>
       <div id="${modalId}-language-panel" class="${NS}-modal__settings-panel" data-settings-panel="language" data-open="false" hidden><strong>${escape(t("language_label", "Language"))}</strong><div class="${NS}-modal__choice-grid"><button type="button" class="${NS}-modal__choice${state.language === "zh" ? " is-active" : ""}" data-language="zh">${icon("globe")}<span>中文</span></button><button type="button" class="${NS}-modal__choice${state.language === "en" ? " is-active" : ""}" data-language="en">${icon("globe")}<span>English</span></button></div></div>
       <div id="${modalId}-effects-panel" class="${NS}-modal__settings-panel ${NS}-modal__settings-panel--effects" data-settings-panel="effects" data-open="false" hidden><strong>${escape(t("effects_label", "Effects"))}</strong><div class="${NS}-modal__effect-list">${effects}</div></div>
-      </footer><div class="${NS}-modal__result" data-result data-open="false" role="dialog" aria-modal="true" aria-labelledby="${modalId}-result-title" hidden><div class="${NS}-modal__result-card">${icon("spark")}<small>${escape(t("finished", "Run complete"))}</small><h3 id="${modalId}-result-title">${escape(t("results_title", "Your result"))}</h3><div class="${NS}-modal__result-score"><strong data-final-wpm>0</strong><span>${escape(t("wpm", "WPM"))}</span></div><div class="${NS}-modal__result-grid"><span><b data-final-accuracy>100%</b><small>${escape(t("accuracy", "accuracy"))}</small></span><span><b data-final-best>0 WPM</b><small>${escape(t("result_best", "best"))}</small></span><span><b data-final-streak>×0</b><small>${escape(t("flow_best", "best flow"))}</small></span></div><button type="button" class="${NS}-modal__result-restart" data-start data-result-restart>${icon("restart")}<span data-restart-label>${escape(t("next", "Next run"))}</span><kbd>Enter</kbd></button></div></div>
+      </footer><div class="${NS}-modal__result" data-result data-open="false" role="dialog" aria-modal="true" aria-labelledby="${modalId}-result-title" hidden><div class="${NS}-modal__result-card">${icon("spark")}<small>${escape(t("finished", "Run complete"))}</small><h3 id="${modalId}-result-title">${escape(t("results_title", "Your result"))}</h3><div class="${NS}-modal__result-score"><strong data-final-wpm>0</strong><span>${escape(t("wpm", "WPM"))}</span></div><div class="${NS}-modal__result-grid"><span><b data-final-accuracy>100%</b><small>${escape(t("accuracy", "accuracy"))}</small></span><span><b data-final-errors>0</b><small>${escape(t("errors_label", "errors"))}</small></span><span><b data-final-best>0 WPM</b><small>${escape(t("result_best", "best"))}</small></span><span><b data-final-streak>×0</b><small>${escape(t("flow_best", "best flow"))}</small></span></div><button type="button" class="${NS}-modal__result-restart" data-start data-result-restart>${icon("restart")}<span data-restart-label>${escape(t("next", "Next run"))}</span><kbd>Enter</kbd></button></div></div>
     </section>`;
   }
 

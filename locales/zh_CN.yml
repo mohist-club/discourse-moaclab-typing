@@ -15,6 +15,8 @@ zh_CN:
     seconds: "秒"
     wpm: "WPM"
     accuracy: "准确率"
+    errors: "处错误"
+    errors_label: "错误"
     best: "最佳"
     sound_on: "开启音效"
     sound_off: "关闭音效"

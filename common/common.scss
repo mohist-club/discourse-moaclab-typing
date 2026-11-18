@@ -205,6 +205,24 @@ body.moaclab-typing-route #main-outlet-wrapper #main-outlet > #moaclab-typing-pa
   color: var(--typing-ink);
 }
 
+.moaclab-typing-modal__char.is-wrong {
+  color: #d33d35;
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 6px;
+}
+
+.moaclab-typing-modal__word.has-space-error .moaclab-typing-modal__pinyin::after {
+  background: #d33d35;
+  border-radius: 2px;
+  content: "";
+  display: inline-block;
+  height: 3px;
+  margin-left: .12em;
+  vertical-align: baseline;
+  width: .45em;
+}
+
 .moaclab-typing-modal__char.is-current {
   color: var(--secondary, #fff);
   transition: none;
@@ -453,7 +471,7 @@ body.moaclab-typing-route #main-outlet-wrapper #main-outlet > #moaclab-typing-pa
 .moaclab-typing-modal__result-card h3 { font-size: 22px; letter-spacing: 0; margin: 5px 0 24px; }
 .moaclab-typing-modal__result-score strong { color: var(--typing-accent); display: block; font: 650 64px/.9 var(--typing-ui-font); font-variant-numeric: tabular-nums; letter-spacing: 0; }
 .moaclab-typing-modal__result-score span { color: var(--typing-muted); display: block; font-size: 11px; margin-top: 10px; }
-.moaclab-typing-modal__result-grid { border-bottom: 1px solid var(--typing-line); border-top: 1px solid var(--typing-line); display: grid; grid-template-columns: repeat(3, 1fr); margin: 28px 0 22px; padding: 18px 0; }
+.moaclab-typing-modal__result-grid { border-bottom: 1px solid var(--typing-line); border-top: 1px solid var(--typing-line); display: grid; grid-template-columns: repeat(4, 1fr); margin: 28px 0 22px; padding: 18px 0; }
 .moaclab-typing-modal__result-grid span { display: grid; gap: 6px; }
 .moaclab-typing-modal__result-grid span + span { border-left: 1px solid var(--typing-line); }
 .moaclab-typing-modal__result-grid b { font: 620 14px/1.1 var(--typing-ui-font); }
