@@ -53,3 +53,29 @@ export function completedRowAt(lengths, cursor, columns) {
 export function overdriveActive(power, active, on = 88, off = 70) {
   return active ? power >= off : power >= on;
 }
+
+// Rolling rows: the row holding the cursor sits at the top of the visible
+// area with `rows` unfinished rows in view. One finished row is kept rendered
+// above (hidden) so the area can slide up instead of swapping pages.
+export function rollingWindow(lengths, cursor, columns, rows) {
+  let offset = 0;
+  let active = Math.max(0, lengths.length - 1);
+  for (let i = 0; i < lengths.length; i++) {
+    if (cursor <= offset + lengths[i]) {
+      active = i;
+      break;
+    }
+    offset += lengths[i] + 1;
+  }
+  const currentRow = Math.floor(active / columns);
+  const firstRow = Math.max(0, currentRow - 1);
+  const needed = (currentRow + rows) * columns;
+  return {
+    currentRow,
+    firstRow,
+    hiddenRows: currentRow - firstRow,
+    start: firstRow * columns,
+    end: Math.min(lengths.length, needed),
+    needed,
+  };
+}
