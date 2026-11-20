@@ -6,7 +6,7 @@ en:
     title: "Typing Lab"
     subtitle: "A small practice room for your next post."
     start: "Start typing"
-    restart: "Restart"
+    restart: "Reset"
     close: "Close"
     ready: "Start typing directly"
     finished: "Run complete"

@@ -500,7 +500,7 @@ export default apiInitializer((api) => {
       const result = root.querySelector("[data-result]");
       result.dataset.open = "false";
       result.hidden = true;
-      root.querySelectorAll("[data-restart-label]").forEach((label) => { label.textContent = t("restart", "Restart"); });
+      root.querySelectorAll("[data-restart-label]").forEach((label) => { label.textContent = t("restart", "Reset"); });
       root.querySelector("[data-batch-status]").textContent = "";
     }
   }
@@ -604,23 +604,6 @@ export default apiInitializer((api) => {
     }
   }
 
-  // Themes such as the Instagram-style one pin a tab bar to the bottom of the
-  // screen; keep the card above it.
-  function bottomInset(viewportHeight) {
-    // Only bar-like layers count: fixed, touching the bottom edge, wide and
-    // short. Full-screen overlays (dialogs, menus) are ignored.
-    let inset = 0;
-    for (const element of document.elementsFromPoint(window.innerWidth / 2, viewportHeight - 1)) {
-      if (element.closest(`#${modalId}`)) continue;
-      const position = getComputedStyle(element).position;
-      if (position !== "fixed" && position !== "sticky") continue;
-      const box = element.getBoundingClientRect();
-      if (box.height >= viewportHeight / 3 || box.width < window.innerWidth * .6 || box.bottom < viewportHeight - 2) continue;
-      inset = Math.max(inset, viewportHeight - box.top);
-    }
-    return inset;
-  }
-
   function onResize() {
     cancelAnimationFrame(state.resizeFrame);
     state.resizeFrame = requestAnimationFrame(() => {
@@ -629,7 +612,7 @@ export default apiInitializer((api) => {
       if (!root) return;
       const viewport = window.visualViewport;
       const viewportHeight = viewport?.height || window.innerHeight;
-      const available = Math.max(0, viewportHeight - bottomInset(viewportHeight) - Math.max(0, root.getBoundingClientRect().top + window.scrollY));
+      const available = Math.max(0, viewportHeight - Math.max(0, root.getBoundingClientRect().top + window.scrollY));
       root.style.setProperty("--typing-available-height", `${available}px`);
       const text = root.querySelector(`.${NS}-modal__text`);
       const style = getComputedStyle(text);
@@ -752,7 +735,7 @@ export default apiInitializer((api) => {
       <div class="${NS}-modal__stage"><div class="${NS}-modal__flow"><div class="${NS}-modal__flow-meta"><strong>${escape(t("flow_label", "WORD FLOW"))}</strong><span>${escape(t("flow", "flow"))} <b data-flow>×0</b></span><span>${escape(t("flow_best", "best"))} <b data-flow-best>×${state.bestStreak}</b></span><span class="${NS}-modal__space-key" data-space-key>${escape(t("space_key", "SPACE"))}</span></div><div class="${NS}-modal__flow-rail" data-flow-rail><div class="${NS}-modal__flow-track" data-flow-track role="progressbar" aria-label="${escape(t("flow_meter", "Flow meter"))}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i data-flow-meter></i><span data-space-wave></span></div><span class="${NS}-modal__meter-head" data-meter-head aria-hidden="true"></span></div></div>
       <span class="${NS}-modal__cursor" data-cursor data-ready="false" aria-hidden="true"></span><div class="${NS}-modal__text" tabindex="0" role="textbox" aria-readonly="true" aria-label="${escape(t("hint", "Type the text above. Backspace works."))}"></div><span class="${NS}-modal__impact-layer" data-impact-layer aria-hidden="true"></span><span class="${NS}-sr-only" data-batch-status aria-live="polite"></span>
       <div class="${NS}-modal__stats"><div class="${NS}-modal__stat"><strong data-wpm>0</strong><span>${escape(t("wpm", "WPM"))}</span></div><div class="${NS}-modal__stat"><strong data-accuracy>100%</strong><span>${escape(t("accuracy", "accuracy"))} · <b data-errors>0</b> ${escape(t("errors", "errors"))}</span></div><div class="${NS}-modal__stat"><strong data-time>30 sec</strong><span>${escape(t("best", "best"))}: <b data-best>${escape(t("no_score", "No score yet"))}</b></span></div>
-      <button type="button" class="${NS}-modal__restart" data-start aria-label="${escape(t("restart", "Restart"))}">${icon("restart")}<span data-restart-label>${escape(t("restart", "Restart"))}</span><kbd>Tab ↵</kbd></button></div>
+      <button type="button" class="${NS}-modal__restart" data-start aria-label="${escape(t("restart", "Reset"))}">${icon("restart")}<span>${escape(t("restart", "Reset"))}</span><kbd>Tab ↵</kbd></button></div>
       <p class="${NS}-modal__hint">${escape(t("ready", "Start typing directly"))}</p></div>
       <div class="${NS}-modal__result" data-result data-open="false" role="dialog" aria-modal="true" aria-labelledby="${modalId}-result-title" hidden><div class="${NS}-modal__result-card">${icon("spark")}<small>${escape(t("finished", "Run complete"))}</small><h3 id="${modalId}-result-title">${escape(t("results_title", "Your result"))}</h3><div class="${NS}-modal__result-score"><strong data-final-wpm>0</strong><span>${escape(t("wpm", "WPM"))}</span></div><div class="${NS}-modal__result-grid"><span><b data-final-accuracy>100%</b><small>${escape(t("accuracy", "accuracy"))}</small></span><span><b data-final-errors>0</b><small>${escape(t("errors_label", "errors"))}</small></span><span><b data-final-best>0 WPM</b><small>${escape(t("result_best", "best"))}</small></span><span><b data-final-streak>×0</b><small>${escape(t("flow_best", "best flow"))}</small></span></div><button type="button" class="${NS}-modal__result-restart" data-start data-result-restart>${icon("restart")}<span data-restart-label>${escape(t("next", "Next run"))}</span><kbd>Enter</kbd></button></div></div>
     </section>`;
