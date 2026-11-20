@@ -1,6 +1,6 @@
 import { apiInitializer } from "discourse/lib/api";
 import HSK_WORDS from "../lib/moaclab-typing-words";
-import { completedRowAt, overdriveActive, speedMilestone, tokenIndexAtOffset, visibleRows, wordWindow } from "../lib/moaclab-typing-layout";
+import { completedRowAt, overdriveActive, rollingWindow, speedMilestone, tokenIndexAtOffset, visibleRows } from "../lib/moaclab-typing-layout";
 
 export default apiInitializer((api) => {
   const NS = "moaclab-typing";
@@ -53,8 +53,8 @@ export default apiInitializer((api) => {
   const englishWords = "thock switch keycap gasket firmware plate foam spacebar layout build quiet deep poppy type fast clean every press is tuned by hand".split(" ");
   const durations = String(setting("durations", "15|30|60|90")).split("|").map(Number).filter((n) => n > 0);
   const defaultDuration = Number(setting("default_duration", 30)) || durations[0] || 30;
-  const rowCount = 4;
-  const maxRows = 4;
+  const rowCount = 5;
+  const maxRows = 5;
   const getColumnCount = () => {
     const width = document.querySelector(`.${NS}-modal__text`)?.clientWidth || window.innerWidth;
     return width >= 960 ? 5 : width >= 720 ? 4 : width >= 520 ? 3 : 2;
@@ -82,6 +82,7 @@ export default apiInitializer((api) => {
   let layoutObserver = null;
   let renderedTokens = null;
   let renderedWindow = "";
+  let renderedTopRow = null;
   let reachedSpeed = 0;
 
   const isTypingRoute = () => {
@@ -100,14 +101,25 @@ export default apiInitializer((api) => {
     });
   }
 
-  const randomText = () => {
+  const pickWords = (count) => {
     let pool = state.language === "en" ? englishWords : (chineseGroups[state.group] || chineseGroups.random).words.filter((word) => pinyin[word]);
     if (state.hard && state.language === "zh") pool = pool.filter((word) => pinyin[word].length >= 8);
-    const visibleWordCount = rowCount * state.columns;
-    const selected = Array.from({ length: visibleWordCount }, (_, i) => pool[(i * 7 + Math.floor(Math.random() * pool.length)) % pool.length]);
+    return Array.from({ length: count }, (_, i) => pool[(i * 7 + Math.floor(Math.random() * pool.length)) % pool.length]);
+  };
+  const targetFor = (words) => words.map((word) => state.language === "zh" ? pinyin[word] : word).join(" ");
+  const randomText = () => {
+    const selected = pickWords((rowCount + 1) * state.columns);
     const display = selected.join(" ");
-    const pronunciation = state.language === "zh" ? selected.map((word) => pinyin[word]).join(" ") : "";
-    return { tokens: selected, target: state.language === "zh" ? pronunciation : display, display, pinyin: pronunciation };
+    const pronunciation = state.language === "zh" ? targetFor(selected) : "";
+    return { tokens: selected, target: targetFor(selected), display, pinyin: pronunciation };
+  };
+  // Rows keep coming: append words so the visible window never runs dry.
+  const extendTokens = (count) => {
+    const words = pickWords(count);
+    state.tokens.push(...words);
+    state.target += ` ${targetFor(words)}`;
+    state.display += ` ${words.join(" ")}`;
+    if (state.language === "zh") state.pinyin += ` ${targetFor(words)}`;
   };
   const bestKey = () => `${NS}:best:${state.duration}`;
   const best = () => Number(readStorage(bestKey(), "0")) || 0;
@@ -146,13 +158,25 @@ export default apiInitializer((api) => {
     if (!el) return;
     root.style.setProperty("--typing-columns", String(state.columns));
     root.style.setProperty("--typing-rows", String(state.rows));
-    const pronunciations = state.tokens.map((word) => state.language === "zh" ? (pinyin[word] || word) : word);
-    const { start: first, end: last } = wordWindow(pronunciations.map((word) => word.length), state.typed.length, state.columns, state.rows);
-    const windowKey = `${first}:${last}:${state.language}`;
-    const rebuilt = renderedTokens !== state.tokens || renderedWindow !== windowKey;
+    let pronunciations = state.tokens.map((word) => state.language === "zh" ? (pinyin[word] || word) : word);
+    let view = rollingWindow(pronunciations.map((word) => word.length), state.typed.length, state.columns, state.rows);
+    if (state.tokens.length < view.needed + state.columns) {
+      extendTokens(view.needed + state.columns * 2 - state.tokens.length);
+      pronunciations = state.tokens.map((word) => state.language === "zh" ? (pinyin[word] || word) : word);
+      view = rollingWindow(pronunciations.map((word) => word.length), state.typed.length, state.columns, state.rows);
+    }
+    const { start: first, end: last } = view;
+    const topRow = view.firstRow + view.hiddenRows;
+    const windowKey = `${first}:${last}:${state.language}:${state.columns}:${state.rows}`;
+    const freshTokens = renderedTokens !== state.tokens;
+    const rebuilt = freshTokens || renderedWindow !== windowKey;
+    // A finished row slides up out of view; anything else (new run, resize) jumps.
+    const slide = rebuilt && !freshTokens && renderedTopRow !== null && topRow === renderedTopRow + 1
+      && renderedWindow.split(":").slice(2).join(":") === windowKey.split(":").slice(2).join(":") && !reducedMotion();
+    let cursorShift = 0;
     if (rebuilt) {
       let cursor = 0;
-      el.innerHTML = state.tokens.map((word, wi) => {
+      const words = state.tokens.map((word, wi) => {
         const py = pronunciations[wi];
         const start = cursor;
         cursor += py.length + 1;
@@ -161,8 +185,25 @@ export default apiInitializer((api) => {
         const lengthClass = py.length > 11 ? " is-long" : py.length > 8 ? " is-medium" : "";
         return `<span class="${NS}-modal__word${lengthClass}" data-token-index="${wi}" data-word-start="${start}" data-word-end="${start + py.length}" style="--typing-chars: ${py.length}"><span class="${NS}-modal__hanzi">${state.language === "zh" ? escape(word) : ""}</span><span class="${NS}-modal__pinyin">${chars}</span></span>`;
       }).join("");
+      el.innerHTML = `<div class="${NS}-modal__lines">${words}</div>`;
+      const lines = el.firstElementChild;
+      const style = getComputedStyle(lines);
+      const step = (parseFloat(style.gridAutoRows) || 72) + (parseFloat(style.rowGap) || 0);
+      const settled = `translate3d(0, ${-view.hiddenRows * step}px, 0)`;
+      if (slide) {
+        // Start where the previous layout was, then glide up by one row.
+        lines.style.transition = "none";
+        lines.style.transform = `translate3d(0, ${-(view.hiddenRows - 1) * step}px, 0)`;
+        lines.getBoundingClientRect();
+        lines.style.transition = "";
+        lines.style.transform = settled;
+        cursorShift = -step;
+      } else {
+        lines.style.transform = settled;
+      }
       renderedTokens = state.tokens;
       renderedWindow = windowKey;
+      renderedTopRow = topRow;
     }
     // Keep character nodes alive so one keystroke does not cancel the previous impact.
     el.querySelectorAll("[data-index]").forEach((char) => {
@@ -177,12 +218,12 @@ export default apiInitializer((api) => {
       word.classList.toggle("has-space-error", spaceInput !== undefined && spaceInput !== " ");
     });
     root.querySelector("[data-space-key]").classList.toggle("is-current", state.target[state.typed.length] === " ");
-    placeCursor(rebuilt);
+    placeCursor(rebuilt && !slide, cursorShift);
   }
 
   // One block cursor glides between letters (and across rows) instead of
   // jumping; the current letter is drawn on top of it in the page colour.
-  function placeCursor(instant = false) {
+  function placeCursor(instant = false, shiftY = 0) {
     const root = document.getElementById(modalId);
     const cursor = root?.querySelector("[data-cursor]");
     const stage = root?.querySelector(`.${NS}-modal__stage`);
@@ -202,7 +243,7 @@ export default apiInitializer((api) => {
     const stageBox = stage.getBoundingClientRect();
     cursor.classList.toggle("is-instant", instant || cursor.dataset.ready !== "true");
     cursor.style.setProperty("--cursor-x", `${box.left - stageBox.left}px`);
-    cursor.style.setProperty("--cursor-y", `${box.top - stageBox.top}px`);
+    cursor.style.setProperty("--cursor-y", `${box.top - stageBox.top + shiftY}px`);
     cursor.style.setProperty("--cursor-w", `${box.width}px`);
     cursor.style.setProperty("--cursor-h", `${box.height}px`);
     cursor.dataset.ready = "true";
@@ -464,30 +505,6 @@ export default apiInitializer((api) => {
     }
   }
 
-  function advanceBatch() {
-    const generated = randomText();
-    state.tokens = generated.tokens;
-    state.target = generated.target;
-    state.display = generated.display;
-    state.pinyin = generated.pinyin;
-    state.typed = "";
-    state.mistakeTokens.clear();
-    state.celebratedRows.clear();
-    renderText();
-    const root = document.getElementById(modalId);
-    if (!root) return;
-    const status = root.querySelector("[data-batch-status]");
-    status.textContent = "";
-    requestAnimationFrame(() => { status.textContent = t("batch_updated", "New words loaded"); });
-    const text = root.querySelector(`.${NS}-modal__text`);
-    if (!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
-      text?.animate([
-        { opacity: .45, transform: "translateY(6px)" },
-        { opacity: 1, transform: "translateY(0)" },
-      ], { duration: 160, easing: "cubic-bezier(0.22, 1, 0.36, 1)" });
-    }
-  }
-
   function finish() {
     clearInterval(state.timer);
     state.running = false;
@@ -585,7 +602,6 @@ export default apiInitializer((api) => {
         ], { duration: 450, easing: "cubic-bezier(.22,1,.36,1)" });
       }
     }
-    if (state.typed.length >= state.target.length) advanceBatch();
   }
 
   // Themes such as the Instagram-style one pin a tab bar to the bottom of the
@@ -855,6 +871,7 @@ export default apiInitializer((api) => {
     window.removeEventListener("resize", onResize);
     window.visualViewport?.removeEventListener("resize", onResize);
     renderedTokens = null;
+    renderedTopRow = null;
     cancelAnimationFrame(state.resizeFrame);
     layoutObserver?.disconnect();
     layoutObserver = null;

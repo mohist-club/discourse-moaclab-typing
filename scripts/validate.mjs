@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { build } from "esbuild";
 import { compile } from "sass";
 import words from "../javascripts/discourse/lib/moaclab-typing-words.js";
-import { completedRowAt, overdriveActive, speedMilestone, tokenIndexAtOffset, visibleRows, wordWindow } from "../javascripts/discourse/lib/moaclab-typing-layout.js";
+import { completedRowAt, overdriveActive, rollingWindow, speedMilestone, tokenIndexAtOffset, visibleRows, wordWindow } from "../javascripts/discourse/lib/moaclab-typing-layout.js";
 
 assert.equal(visibleRows(568, 80, 16), 6);
 assert.equal(visibleRows(350, 80, 16), 3);
@@ -28,6 +28,12 @@ assert.equal(tokenIndexAtOffset([2, 4, 3], 3), 1);
 assert.deepEqual(completedRowAt([2, 4, 3, 5], 7, 2), { start: 0, end: 2, key: "2:0:2" });
 assert.deepEqual(completedRowAt([2, 4, 3, 5], 17, 2), { start: 2, end: 4, key: "2:2:4" });
 assert.equal(completedRowAt([2, 4, 3, 5], 8, 2), null);
+// 4 columns of 5-letter words: each row spans 24 characters including spaces.
+assert.deepEqual(rollingWindow(lengths, 0, 4, 5), { currentRow: 0, firstRow: 0, hiddenRows: 0, start: 0, end: 20, needed: 20 });
+assert.deepEqual(rollingWindow(lengths, 23, 4, 5), { currentRow: 0, firstRow: 0, hiddenRows: 0, start: 0, end: 20, needed: 20 });
+assert.deepEqual(rollingWindow(lengths, 24, 4, 5), { currentRow: 1, firstRow: 0, hiddenRows: 1, start: 0, end: 24, needed: 24 });
+assert.deepEqual(rollingWindow(lengths, 48, 4, 5), { currentRow: 2, firstRow: 1, hiddenRows: 1, start: 4, end: 28, needed: 28 });
+assert.equal(rollingWindow(lengths, 48, 4, 5).end - rollingWindow(lengths, 48, 4, 5).start, 24);
 assert.equal(overdriveActive(87, false), false);
 assert.equal(overdriveActive(88, false), true);
 assert.equal(overdriveActive(75, true), true);
