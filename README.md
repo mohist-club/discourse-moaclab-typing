@@ -2,6 +2,11 @@
 
 一个安装到 Discourse 的 Theme Component，通过 `/typing` 进入打字练习页面。页面路由由轻量配套插件 `discourse-moaclab-tools` 注册；侧栏入口默认不自动添加，可通过组件开关或 Discourse 后台导航菜单维护。
 
+## 2.7.1
+
+- `minimum_discourse_version` 由 3.0.0 改为 3.3.0，与配套插件 `discourse-moaclab-tools` 的 `required_version` 对齐。`/typing` 路由由该插件注册，低于 3.3.0 的站点本来就无法使用本组件。
+- 新增 `AGENTS.md` 开发约定。功能与界面没有变化。
+
 ## 2.7.0
 
 - 打字区回归安静：移除字母跃动、词块抖动、粒子、冲击环、整屏震动、光标残影、汉字上跳火花和覆盖整行的完美行光带。词语区只保留滑动光标，按错键时光标闪红。
