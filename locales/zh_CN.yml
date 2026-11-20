@@ -6,7 +6,7 @@ zh_CN:
     title: "打字实验室"
     subtitle: "给下一篇帖子留一间专注练习室。"
     start: "开始打字"
-    restart: "重新开始"
+    restart: "重置"
     close: "关闭"
     ready: "直接输入拼音开始"
     finished: "本轮完成"
