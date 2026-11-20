@@ -588,6 +588,23 @@ export default apiInitializer((api) => {
     if (state.typed.length >= state.target.length) advanceBatch();
   }
 
+  // Themes such as the Instagram-style one pin a tab bar to the bottom of the
+  // screen; keep the card above it.
+  function bottomInset(viewportHeight) {
+    // Only bar-like layers count: fixed, touching the bottom edge, wide and
+    // short. Full-screen overlays (dialogs, menus) are ignored.
+    let inset = 0;
+    for (const element of document.elementsFromPoint(window.innerWidth / 2, viewportHeight - 1)) {
+      if (element.closest(`#${modalId}`)) continue;
+      const position = getComputedStyle(element).position;
+      if (position !== "fixed" && position !== "sticky") continue;
+      const box = element.getBoundingClientRect();
+      if (box.height >= viewportHeight / 3 || box.width < window.innerWidth * .6 || box.bottom < viewportHeight - 2) continue;
+      inset = Math.max(inset, viewportHeight - box.top);
+    }
+    return inset;
+  }
+
   function onResize() {
     cancelAnimationFrame(state.resizeFrame);
     state.resizeFrame = requestAnimationFrame(() => {
@@ -595,7 +612,8 @@ export default apiInitializer((api) => {
       const root = document.getElementById(modalId);
       if (!root) return;
       const viewport = window.visualViewport;
-      const available = Math.max(0, (viewport?.height || window.innerHeight) - Math.max(0, root.getBoundingClientRect().top + window.scrollY));
+      const viewportHeight = viewport?.height || window.innerHeight;
+      const available = Math.max(0, viewportHeight - bottomInset(viewportHeight) - Math.max(0, root.getBoundingClientRect().top + window.scrollY));
       root.style.setProperty("--typing-available-height", `${available}px`);
       const text = root.querySelector(`.${NS}-modal__text`);
       const style = getComputedStyle(text);
