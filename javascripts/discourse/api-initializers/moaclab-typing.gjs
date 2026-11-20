@@ -53,7 +53,8 @@ export default apiInitializer((api) => {
   const englishWords = "thock switch keycap gasket firmware plate foam spacebar layout build quiet deep poppy type fast clean every press is tuned by hand".split(" ");
   const durations = String(setting("durations", "15|30|60|90")).split("|").map(Number).filter((n) => n > 0);
   const defaultDuration = Number(setting("default_duration", 30)) || durations[0] || 30;
-  const rowCount = 6;
+  const rowCount = 4;
+  const maxRows = 4;
   const getColumnCount = () => {
     const width = document.querySelector(`.${NS}-modal__text`)?.clientWidth || window.innerWidth;
     return width >= 960 ? 5 : width >= 720 ? 4 : width >= 520 ? 3 : 2;
@@ -599,7 +600,12 @@ export default apiInitializer((api) => {
       const text = root.querySelector(`.${NS}-modal__text`);
       const style = getComputedStyle(text);
       const word = root.querySelector(`.${NS}-modal__word`);
-      const nextRows = visibleRows(text.clientHeight - 8, word?.offsetHeight || 80, parseFloat(style.rowGap) || 0);
+      // The card is centred, so size the word grid from the space left over by
+      // the toolbar and the card chrome, capped to keep the card compact.
+      const controls = root.querySelector(`.${NS}-modal__controls`);
+      const stage = root.querySelector(`.${NS}-modal__stage`);
+      const chrome = (controls?.offsetHeight || 0) + (stage?.offsetHeight || 0) - text.offsetHeight + 56;
+      const nextRows = Math.min(maxRows, visibleRows(root.clientHeight - chrome, word?.offsetHeight || 80, parseFloat(style.rowGap) || 0));
       const nextColumns = getColumnCount();
       if (nextColumns === state.columns && nextRows === state.rows) {
         placeCursor(true);
@@ -686,7 +692,7 @@ export default apiInitializer((api) => {
   }
 
   function modalHtml() {
-    const pills = durations.map((duration) => `<button type="button" class="${NS}-modal__choice${duration === state.duration ? " is-active" : ""}" data-duration="${duration}">${icon("clock")}<span>${duration}s</span></button>`).join("");
+    const segments = durations.map((duration) => `<button type="button" class="${NS}-modal__segment${duration === state.duration ? " is-active" : ""}" data-duration="${duration}" aria-pressed="${duration === state.duration}">${duration}s</button>`).join("");
     const groups = Object.entries(chineseGroups).map(([id, group]) => `<button type="button" class="${NS}-modal__choice${state.group === id ? " is-active" : ""}" data-group="${id}">${icon("shuffle")}<span>${escape(t(`group_${id}`, group.label))}</span></button>`).join("");
     const effects = [
       ["pinyinBump", "bump", "effect_bump", "Keystroke sparks", "effect_bump_description", "Meter head flashes and throws sparks on each correct key"],
@@ -696,26 +702,25 @@ export default apiInitializer((api) => {
     const activeGroup = chineseGroups[state.group] || chineseGroups.random;
     const settingsLabel = escape(t("settings_label", "Typing settings"));
     return `<div class="${NS}-backdrop" data-close></div><section id="${modalId}" class="${NS}-modal" aria-label="${escape(t("title", "Typing Lab"))}">
-      <div class="${NS}-modal__stage"><div class="${NS}-modal__flow"><div class="${NS}-modal__flow-meta"><strong>${escape(t("flow_label", "WORD FLOW"))}</strong><span>${escape(t("flow", "flow"))} <b data-flow>×0</b></span><span>${escape(t("flow_best", "best"))} <b data-flow-best>×${state.bestStreak}</b></span><span class="${NS}-modal__space-key" data-space-key>${escape(t("space_key", "SPACE"))}</span></div><div class="${NS}-modal__flow-rail" data-flow-rail><div class="${NS}-modal__flow-track" data-flow-track role="progressbar" aria-label="${escape(t("flow_meter", "Flow meter"))}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i data-flow-meter></i><span data-space-wave></span></div><span class="${NS}-modal__meter-head" data-meter-head aria-hidden="true"></span></div></div>
-      <span class="${NS}-modal__cursor" data-cursor data-ready="false" aria-hidden="true"></span><div class="${NS}-modal__text" tabindex="0" role="textbox" aria-readonly="true" aria-label="${escape(t("hint", "Type the text above. Backspace works."))}"></div><span class="${NS}-modal__impact-layer" data-impact-layer aria-hidden="true"></span><span class="${NS}-sr-only" data-batch-status aria-live="polite"></span>
-      <div class="${NS}-modal__stats"><div class="${NS}-modal__stat"><strong data-wpm>0</strong><span>${escape(t("wpm", "WPM"))}</span></div><div class="${NS}-modal__stat"><strong data-accuracy>100%</strong><span>${escape(t("accuracy", "accuracy"))} · <b data-errors>0</b> ${escape(t("errors", "errors"))}</span></div><div class="${NS}-modal__stat"><strong data-time>30 sec</strong><span>${escape(t("best", "best"))}: <b data-best>${escape(t("no_score", "No score yet"))}</b></span></div></div>
-      <p class="${NS}-modal__hint">${escape(t("ready", "Start typing directly"))}</p></div>
-      <footer class="${NS}-modal__controls"><div class="${NS}-modal__settings" role="toolbar" aria-label="${settingsLabel}">
-      <button type="button" class="${NS}-modal__icon-button" data-start data-tooltip="${escape(t("restart", "Restart"))}" aria-label="${escape(t("restart", "Restart"))}">${icon("restart")}<span class="${NS}-sr-only" data-restart-label>${escape(t("restart", "Restart"))}</span><kbd>Tab ↵</kbd></button>
+      <div class="${NS}-modal__controls"><div class="${NS}-modal__settings" role="toolbar" aria-label="${settingsLabel}">
+      <div class="${NS}-modal__segmented" role="group" aria-label="${escape(t("time_label", "Time"))}">${segments}</div>
       <span class="${NS}-modal__settings-divider" aria-hidden="true"></span>
-      <button type="button" class="${NS}-modal__icon-button" data-panel-toggle="time" data-tooltip="${escape(t("time_label", "Time"))}" aria-label="${escape(t("time_label", "Time"))}" aria-controls="${modalId}-time-panel" aria-expanded="false">${icon("clock")}<span data-current-duration>${state.duration}s</span></button>
       <button type="button" class="${NS}-modal__icon-button" data-panel-toggle="mode" data-tooltip="${escape(t("mode_label", "Mode"))}" aria-label="${escape(t("mode_label", "Mode"))}" aria-controls="${modalId}-mode-panel" aria-expanded="false">${icon("shuffle")}<span data-current-group>${escape(t(`group_${state.group}`, activeGroup.label))}</span></button>
       <button type="button" class="${NS}-modal__icon-button" data-panel-toggle="language" data-tooltip="${escape(t("language_label", "Language"))}" aria-label="${escape(t("language_label", "Language"))}" aria-controls="${modalId}-language-panel" aria-expanded="false">${icon("globe")}<span data-current-language>${state.language === "zh" ? "中" : "EN"}</span></button>
       <button type="button" class="${NS}-modal__icon-button${state.hard ? " is-active" : ""}" data-hard="true" data-tooltip="${escape(t("hard", "Hard"))}" aria-label="${escape(t("hard", "Hard"))}" aria-pressed="${state.hard}">${icon("bolt")}</button>
       <button type="button" class="${NS}-modal__icon-button" data-panel-toggle="effects" data-tooltip="${escape(t("effects_label", "Effects"))}" aria-label="${escape(t("effects_label", "Effects"))}" aria-controls="${modalId}-effects-panel" aria-expanded="false">${icon("spark")}<span data-current-effects>${enabledEffectCount()}</span></button>
-      <span class="${NS}-modal__settings-spacer"></span>
       <button type="button" class="${NS}-modal__icon-button${state.muted ? " is-muted" : " is-active"}" data-sound data-tooltip="${escape(t(state.muted ? "sound_off" : "sound_on", state.muted ? "Sound off" : "Sound on"))}" aria-label="${escape(t(state.muted ? "sound_off" : "sound_on", state.muted ? "Sound off" : "Sound on"))}" aria-pressed="${!state.muted}">${icon("sound")}</button>
       </div>
-      <div id="${modalId}-time-panel" class="${NS}-modal__settings-panel" data-settings-panel="time" data-open="false" hidden><strong>${escape(t("time_label", "Time"))}</strong><div class="${NS}-modal__choice-grid">${pills}</div></div>
       <div id="${modalId}-mode-panel" class="${NS}-modal__settings-panel" data-settings-panel="mode" data-open="false" hidden><strong>${escape(t("mode_label", "Mode"))}</strong><div class="${NS}-modal__choice-grid">${groups}</div></div>
       <div id="${modalId}-language-panel" class="${NS}-modal__settings-panel" data-settings-panel="language" data-open="false" hidden><strong>${escape(t("language_label", "Language"))}</strong><div class="${NS}-modal__choice-grid"><button type="button" class="${NS}-modal__choice${state.language === "zh" ? " is-active" : ""}" data-language="zh">${icon("globe")}<span>中文</span></button><button type="button" class="${NS}-modal__choice${state.language === "en" ? " is-active" : ""}" data-language="en">${icon("globe")}<span>English</span></button></div></div>
       <div id="${modalId}-effects-panel" class="${NS}-modal__settings-panel ${NS}-modal__settings-panel--effects" data-settings-panel="effects" data-open="false" hidden><strong>${escape(t("effects_label", "Effects"))}</strong><div class="${NS}-modal__effect-list">${effects}</div></div>
-      </footer><div class="${NS}-modal__result" data-result data-open="false" role="dialog" aria-modal="true" aria-labelledby="${modalId}-result-title" hidden><div class="${NS}-modal__result-card">${icon("spark")}<small>${escape(t("finished", "Run complete"))}</small><h3 id="${modalId}-result-title">${escape(t("results_title", "Your result"))}</h3><div class="${NS}-modal__result-score"><strong data-final-wpm>0</strong><span>${escape(t("wpm", "WPM"))}</span></div><div class="${NS}-modal__result-grid"><span><b data-final-accuracy>100%</b><small>${escape(t("accuracy", "accuracy"))}</small></span><span><b data-final-errors>0</b><small>${escape(t("errors_label", "errors"))}</small></span><span><b data-final-best>0 WPM</b><small>${escape(t("result_best", "best"))}</small></span><span><b data-final-streak>×0</b><small>${escape(t("flow_best", "best flow"))}</small></span></div><button type="button" class="${NS}-modal__result-restart" data-start data-result-restart>${icon("restart")}<span data-restart-label>${escape(t("next", "Next run"))}</span><kbd>Enter</kbd></button></div></div>
+      </div>
+      <div class="${NS}-modal__stage"><div class="${NS}-modal__flow"><div class="${NS}-modal__flow-meta"><strong>${escape(t("flow_label", "WORD FLOW"))}</strong><span>${escape(t("flow", "flow"))} <b data-flow>×0</b></span><span>${escape(t("flow_best", "best"))} <b data-flow-best>×${state.bestStreak}</b></span><span class="${NS}-modal__space-key" data-space-key>${escape(t("space_key", "SPACE"))}</span></div><div class="${NS}-modal__flow-rail" data-flow-rail><div class="${NS}-modal__flow-track" data-flow-track role="progressbar" aria-label="${escape(t("flow_meter", "Flow meter"))}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i data-flow-meter></i><span data-space-wave></span></div><span class="${NS}-modal__meter-head" data-meter-head aria-hidden="true"></span></div></div>
+      <span class="${NS}-modal__cursor" data-cursor data-ready="false" aria-hidden="true"></span><div class="${NS}-modal__text" tabindex="0" role="textbox" aria-readonly="true" aria-label="${escape(t("hint", "Type the text above. Backspace works."))}"></div><span class="${NS}-modal__impact-layer" data-impact-layer aria-hidden="true"></span><span class="${NS}-sr-only" data-batch-status aria-live="polite"></span>
+      <div class="${NS}-modal__stats"><div class="${NS}-modal__stat"><strong data-wpm>0</strong><span>${escape(t("wpm", "WPM"))}</span></div><div class="${NS}-modal__stat"><strong data-accuracy>100%</strong><span>${escape(t("accuracy", "accuracy"))} · <b data-errors>0</b> ${escape(t("errors", "errors"))}</span></div><div class="${NS}-modal__stat"><strong data-time>30 sec</strong><span>${escape(t("best", "best"))}: <b data-best>${escape(t("no_score", "No score yet"))}</b></span></div>
+      <button type="button" class="${NS}-modal__restart" data-start aria-label="${escape(t("restart", "Restart"))}">${icon("restart")}<span data-restart-label>${escape(t("restart", "Restart"))}</span><kbd>Tab ↵</kbd></button></div>
+      <p class="${NS}-modal__hint">${escape(t("ready", "Start typing directly"))}</p></div>
+      <div class="${NS}-modal__result" data-result data-open="false" role="dialog" aria-modal="true" aria-labelledby="${modalId}-result-title" hidden><div class="${NS}-modal__result-card">${icon("spark")}<small>${escape(t("finished", "Run complete"))}</small><h3 id="${modalId}-result-title">${escape(t("results_title", "Your result"))}</h3><div class="${NS}-modal__result-score"><strong data-final-wpm>0</strong><span>${escape(t("wpm", "WPM"))}</span></div><div class="${NS}-modal__result-grid"><span><b data-final-accuracy>100%</b><small>${escape(t("accuracy", "accuracy"))}</small></span><span><b data-final-errors>0</b><small>${escape(t("errors_label", "errors"))}</small></span><span><b data-final-best>0 WPM</b><small>${escape(t("result_best", "best"))}</small></span><span><b data-final-streak>×0</b><small>${escape(t("flow_best", "best flow"))}</small></span></div><button type="button" class="${NS}-modal__result-restart" data-start data-result-restart>${icon("restart")}<span data-restart-label>${escape(t("next", "Next run"))}</span><kbd>Enter</kbd></button></div></div>
     </section>`;
   }
 
@@ -771,8 +776,10 @@ export default apiInitializer((api) => {
       }
       if (target.matches("[data-duration]")) {
         state.duration = Number(target.dataset.duration);
-        root.querySelectorAll("[data-duration]").forEach((el) => el.classList.toggle("is-active", el === target));
-        root.querySelector("[data-current-duration]").textContent = `${state.duration}s`;
+        root.querySelectorAll("[data-duration]").forEach((el) => {
+          el.classList.toggle("is-active", el === target);
+          el.setAttribute("aria-pressed", String(el === target));
+        });
         closeSettingPanels();
         reset();
       }
